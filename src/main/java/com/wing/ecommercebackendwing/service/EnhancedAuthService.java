@@ -11,7 +11,7 @@ import com.wing.ecommercebackendwing.security.jwt.JwtTokenProvider;
 import com.wing.ecommercebackendwing.util.PasswordValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AuthenticationManager;
+
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -31,7 +31,6 @@ public class EnhancedAuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
-    private final AuthenticationManager authenticationManager;
     private final RefreshTokenService refreshTokenService;
     private final EmailService emailService;
     private final LoginAttemptService loginAttemptService;
@@ -97,7 +96,7 @@ public class EnhancedAuthService {
         if (Boolean.TRUE.equals(user.getTwofaEnabled())) {
             // Partial response - 2FA required, no token yet
             log.info("2FA required for user: {}", request.getEmail());
-            throw new RuntimeException("2FA_REQUIRED"); // Client should catch this and prompt for 2FA code
+            throw new RuntimeException("2FA_REQUIRED");
         }
 
         // Successful login

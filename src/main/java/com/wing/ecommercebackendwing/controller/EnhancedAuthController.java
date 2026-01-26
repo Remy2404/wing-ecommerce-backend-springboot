@@ -4,6 +4,7 @@ import com.wing.ecommercebackendwing.dto.request.auth.*;
 import com.wing.ecommercebackendwing.dto.response.auth.AuthResponse;
 import com.wing.ecommercebackendwing.dto.response.auth.TwoFactorResponse;
 import com.wing.ecommercebackendwing.dto.response.common.MessageResponse;
+import com.wing.ecommercebackendwing.security.CustomUserDetails;
 import com.wing.ecommercebackendwing.service.EnhancedAuthService;
 import com.wing.ecommercebackendwing.service.TwoFactorAuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,7 +13,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -88,10 +88,8 @@ public class EnhancedAuthController {
 
     @PostMapping("/logout")
     @Operation(summary = "Logout and revoke refresh tokens")
-    public ResponseEntity<MessageResponse> logout(@AuthenticationPrincipal UserDetails userDetails) {
-        // Extract user ID from principal
-        // This is a simplified version - you may need to adjust based on your UserDetails implementation
-        authService.logout(UUID.randomUUID()); // TODO: Get actual user ID from principal
+    public ResponseEntity<MessageResponse> logout(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        authService.logout(userDetails.getUserId());
         return ResponseEntity.ok(MessageResponse.builder()
                 .success(true)
                 .message("Logged out successfully")
@@ -101,8 +99,8 @@ public class EnhancedAuthController {
     // 2FA Endpoints
     @PostMapping("/2fa/setup")
     @Operation(summary = "Generate 2FA secret and QR code")
-    public ResponseEntity<TwoFactorResponse> setup2FA(@AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId = UUID.randomUUID(); // TODO: Get from principal
+    public ResponseEntity<TwoFactorResponse> setup2FA(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        UUID userId = userDetails.getUserId();
         String secret = twoFactorAuthService.generateSecret(userId);
         String qrCodeUrl = twoFactorAuthService.generateQRCodeUrl(secret, userDetails.getUsername());
         
@@ -116,9 +114,9 @@ public class EnhancedAuthController {
     @PostMapping("/2fa/enable")
     @Operation(summary = "Enable 2FA after verifying code")
     public ResponseEntity<MessageResponse> enable2FA(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody Enable2FARequest request) {
-        UUID userId = UUID.randomUUID(); // TODO: Get from principal
+        UUID userId = userDetails.getUserId();
         boolean enabled = twoFactorAuthService.enable2FA(userId, Integer.parseInt(request.getCode()));
         
         if (enabled) {
@@ -136,8 +134,8 @@ public class EnhancedAuthController {
 
     @PostMapping("/2fa/disable")
     @Operation(summary = "Disable 2FA")
-    public ResponseEntity<MessageResponse> disable2FA(@AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId = UUID.randomUUID(); // TODO: Get from principal
+    public ResponseEntity<MessageResponse> disable2FA(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        UUID userId = userDetails.getUserId();
         twoFactorAuthService.disable2FA(userId);
         
         return ResponseEntity.ok(MessageResponse.builder()
