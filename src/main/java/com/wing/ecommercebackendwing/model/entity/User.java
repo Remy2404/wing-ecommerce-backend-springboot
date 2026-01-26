@@ -47,6 +47,43 @@ public class User {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    // Email Verification
+    @Column(name = "email_verified")
+    private Boolean emailVerified = false;
+
+    @Column(name = "email_verification_token")
+    private String emailVerificationToken;
+
+    @Column(name = "email_verification_sent_at")
+    private Instant emailVerificationSentAt;
+
+    // Account Security
+    @Column(name = "account_locked")
+    private Boolean accountLocked = false;
+
+    @Column(name = "locked_until")
+    private Instant lockedUntil;
+
+    @Column(name = "failed_login_attempts")
+    private Integer failedLoginAttempts = 0;
+
+    @Column(name = "last_failed_login")
+    private Instant lastFailedLogin;
+
+    // Two-Factor Authentication
+    @Column(name = "twofa_enabled")
+    private Boolean twofaEnabled = false;
+
+    @Column(name = "twofa_secret")
+    private String twofaSecret;
+
+    // Password Reset
+    @Column(name = "password_reset_token")
+    private String passwordResetToken;
+
+    @Column(name = "password_reset_token_expiry")
+    private Instant passwordResetTokenExpiry;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private List<Address> addresses;
 
