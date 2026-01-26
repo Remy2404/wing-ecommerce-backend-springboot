@@ -1,7 +1,9 @@
 package com.wing.ecommercebackendwing.controller;
 
 import com.wing.ecommercebackendwing.dto.request.cart.AddToCartRequest;
+import com.wing.ecommercebackendwing.dto.request.cart.UpdateCartItemRequest;
 import com.wing.ecommercebackendwing.dto.response.cart.CartResponse;
+import com.wing.ecommercebackendwing.security.CustomUserDetails;
 import com.wing.ecommercebackendwing.service.CartService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -10,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -40,12 +43,12 @@ public class CartController {
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/update")
+    @PutMapping("/items")
     @Operation(summary = "Update cart item quantity")
-    public ResponseEntity<CartResponse> updateQuantity(Authentication authentication,
-                                                        @Valid @RequestBody Object updateRequest) {
-        UUID userId = UUID.fromString(authentication.getName());
-        CartResponse response = cartService.updateQuantity(userId, updateRequest);
+    public ResponseEntity<CartResponse> updateQuantity(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody UpdateCartItemRequest request) {
+        CartResponse response = cartService.updateQuantity(userDetails.getUserId(), request);
         return ResponseEntity.ok(response);
     }
 

@@ -50,6 +50,9 @@ public class Product {
 
     private String images;
 
+    @Column(name = "stock_quantity", nullable = false)
+    private Integer stockQuantity = 0;
+
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 

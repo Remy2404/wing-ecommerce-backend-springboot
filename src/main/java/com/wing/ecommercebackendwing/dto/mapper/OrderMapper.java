@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 public class OrderMapper {
 
     public static OrderResponse toResponse(Order order) {
-        List<OrderItemResponse> itemResponses = order.getOrderItems().stream()
+        List<OrderItemResponse> itemResponses = order.getItems().stream()
                 .map(OrderMapper::toOrderItemResponse)
                 .collect(Collectors.toList());
 

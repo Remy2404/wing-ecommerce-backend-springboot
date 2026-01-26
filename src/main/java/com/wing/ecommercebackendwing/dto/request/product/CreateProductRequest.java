@@ -14,8 +14,11 @@ import java.util.UUID;
 @Data
 @Builder
 public class CreateProductRequest {
-    @NotBlank
+    @NotBlank(message = "Product name is required")
     private String name;
+
+    @NotBlank(message = "Product slug is required")
+    private String slug;
 
     private String description;
 

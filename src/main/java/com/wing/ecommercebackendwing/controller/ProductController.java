@@ -14,7 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.UUID;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/products")
@@ -47,12 +48,18 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{slug}")
     @PreAuthorize("hasRole('ADMIN')")
     @SecurityRequirement(name = "Bearer Authentication")
     @Operation(summary = "Update product (Admin only)")
-    public ResponseEntity<Void> updateProduct(@PathVariable UUID id, @Valid @RequestBody Object updateRequest) {
-        // TODO: Implement update logic
-        return ResponseEntity.ok().build();
+    public ResponseEntity<?> updateProduct(
+            @PathVariable String slug,
+            @RequestBody Object updateRequest) {
+        // Find product by slug and update
+        // This needs a proper UpdateProductRequest DTO
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Product update not fully implemented");
+        response.put("slug", slug);
+        return ResponseEntity.ok(response);
     }
 }

@@ -2,17 +2,20 @@
 
 import com.wing.ecommercebackendwing.dto.request.order.CreateOrderRequest;
 import com.wing.ecommercebackendwing.dto.response.order.OrderResponse;
+import com.wing.ecommercebackendwing.security.CustomUserDetails;
 import com.wing.ecommercebackendwing.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+
 import java.util.UUID;
 
 @RestController
@@ -35,16 +38,20 @@ public class OrderController {
 
     @GetMapping
     @Operation(summary = "Get user's orders")
-    public ResponseEntity<List<OrderResponse>> getUserOrders(Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        List<OrderResponse> response = orderService.getUserOrders(userId);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Page<OrderResponse>> getUserOrders(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Page<OrderResponse> orders = orderService.getUserOrders(userDetails.getUserId(), page, size);
+        return ResponseEntity.ok(orders);
     }
 
     @GetMapping("/{orderNumber}")
-    @Operation(summary = "Get order by order number")
-    public ResponseEntity<OrderResponse> getOrderByNumber(@PathVariable String orderNumber) {
-        OrderResponse response = orderService.getOrderByNumber(orderNumber);
-        return ResponseEntity.ok(response);
+    @Operation(summary = "Get order by number")
+    public ResponseEntity<OrderResponse> getOrderByNumber(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable String orderNumber) {
+        OrderResponse order = orderService.getOrderByNumber(userDetails.getUserId(), orderNumber);
+        return ResponseEntity.ok(order);
     }
 }
