@@ -92,6 +92,11 @@ public class OrderService {
         return OrderMapper.toResponse(savedOrder);
     }
 
+    public Page<OrderResponse> getAllOrders(int page, int size) {
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100), Sort.by(Sort.Direction.DESC, "orderDate"));
+        return orderRepository.findAll(pageable).map(OrderMapper::toResponse);
+    }
+
     public Page<OrderResponse> getUserOrders(UUID userId, int page, int size) {
         Pageable pageable = PageRequest.of(page, Math.min(size, 50), Sort.by(Sort.Direction.DESC, "orderDate"));
         Page<Order> orders = orderRepository.findByUserId(userId, pageable);

@@ -15,7 +15,6 @@ public class PasswordValidator {
             return new ValidationResult(false, "Password must be at least " + MIN_LENGTH + " characters long");
         }
 
-/*
         if (!UPPERCASE_PATTERN.matcher(password).find()) {
             return new ValidationResult(false, "Password must contain at least one uppercase letter");
         }
@@ -23,17 +22,14 @@ public class PasswordValidator {
         if (!LOWERCASE_PATTERN.matcher(password).find()) {
             return new ValidationResult(false, "Password must contain at least one lowercase letter");
         }
-*/
 
         if (!DIGIT_PATTERN.matcher(password).find()) {
             return new ValidationResult(false, "Password must contain at least one digit");
         }
 
-/*
         if (!SPECIAL_CHAR_PATTERN.matcher(password).find()) {
             return new ValidationResult(false, "Password must contain at least one special character");
         }
-*/
 
         return new ValidationResult(true, "Password is valid");
     }

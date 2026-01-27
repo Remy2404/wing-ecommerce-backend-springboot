@@ -119,4 +119,13 @@ public class ProductService {
     private String generateSlug(String name) {
         return name.toLowerCase().replaceAll("[^a-z0-9\\s]", "").replaceAll("\\s+", "-") + "-" + UUID.randomUUID().toString().substring(0, 5);
     }
+
+    @Transactional
+    public void deleteProduct(String slug) {
+        Product product = productRepository.findBySlug(slug)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+        
+        productRepository.delete(product);
+        log.info("Deleted product with slug: {}", slug);
+    }
 }

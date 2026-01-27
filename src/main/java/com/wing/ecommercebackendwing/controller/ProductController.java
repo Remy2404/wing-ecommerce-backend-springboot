@@ -56,4 +56,13 @@ public class ProductController {
         ProductResponse response = productService.updateProduct(slug, updateRequest);
         return ResponseEntity.ok(response);
     }
+
+    @DeleteMapping("/{slug}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @SecurityRequirement(name = "Bearer Authentication")
+    @Operation(summary = "Delete product (Admin only)")
+    public ResponseEntity<Void> deleteProduct(@PathVariable String slug) {
+        productService.deleteProduct(slug);
+        return ResponseEntity.ok().build();
+    }
 }

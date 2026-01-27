@@ -1,6 +1,8 @@
 package com.wing.ecommercebackendwing.controller;
 
+import com.wing.ecommercebackendwing.dto.request.user.UpdateProfileRequest;
 import com.wing.ecommercebackendwing.dto.response.auth.UserResponse;
+import com.wing.ecommercebackendwing.dto.response.user.UserStatsResponse;
 import com.wing.ecommercebackendwing.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -32,7 +34,7 @@ public class UserController {
     @PutMapping("/profile")
     @Operation(summary = "Update user profile")
     public ResponseEntity<UserResponse> updateProfile(Authentication authentication,
-                                                      @RequestBody Object updateRequest) {
+                                                      @RequestBody UpdateProfileRequest updateRequest) {
         UUID userId = UUID.fromString(authentication.getName());
         UserResponse response = userService.updateProfile(userId, updateRequest);
         return ResponseEntity.ok(response);
@@ -40,7 +42,7 @@ public class UserController {
 
     @GetMapping("/stats")
     @Operation(summary = "Get user dashboard statistics")
-    public ResponseEntity<Object> getStats(Authentication authentication) {
+    public ResponseEntity<UserStatsResponse> getStats(Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(userService.getDashboardStats(userId));
     }

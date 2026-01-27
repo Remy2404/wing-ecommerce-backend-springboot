@@ -1,7 +1,9 @@
 package com.wing.ecommercebackendwing.service;
 
 import com.wing.ecommercebackendwing.dto.mapper.UserMapper;
+import com.wing.ecommercebackendwing.dto.request.user.UpdateProfileRequest;
 import com.wing.ecommercebackendwing.dto.response.auth.UserResponse;
+import com.wing.ecommercebackendwing.dto.response.user.UserStatsResponse;
 import com.wing.ecommercebackendwing.model.entity.User;
 import com.wing.ecommercebackendwing.repository.NotificationRepository;
 import com.wing.ecommercebackendwing.repository.OrderRepository;
@@ -11,8 +13,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -31,21 +31,23 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponse updateProfile(UUID userId, Object updateRequest) {
+    public UserResponse updateProfile(UUID userId, UpdateProfileRequest updateRequest) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
         
-        // Note: updateRequest should be a proper DTO with validation
-        // For now, this is a placeholder that needs a proper UpdateProfileRequest DTO
+        if (updateRequest.getFirstName() != null) user.setFirstName(updateRequest.getFirstName());
+        if (updateRequest.getLastName() != null) user.setLastName(updateRequest.getLastName());
+        if (updateRequest.getPhoneNumber() != null) user.setPhone(updateRequest.getPhoneNumber());
+        
         userRepository.save(user);
         return UserMapper.toResponse(user);
     }
 
-    public Object getDashboardStats(UUID userId) {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("totalOrders", orderRepository.countByUserId(userId));
-        stats.put("wishlistCount", wishlistRepository.countByUserId(userId));
-        stats.put("unreadNotifications", notificationRepository.countByUserIdAndIsReadFalse(userId));
-        return stats;
+    public UserStatsResponse getDashboardStats(UUID userId) {
+        return UserStatsResponse.builder()
+                .totalOrders(orderRepository.countByUserId(userId))
+                .wishlistCount(wishlistRepository.countByUserId(userId))
+                .unreadNotifications(notificationRepository.countByUserIdAndIsReadFalse(userId))
+                .build();
     }
 }

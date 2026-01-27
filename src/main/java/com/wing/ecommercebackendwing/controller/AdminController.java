@@ -1,16 +1,15 @@
 package com.wing.ecommercebackendwing.controller;
 
+import com.wing.ecommercebackendwing.dto.response.order.OrderResponse;
 import com.wing.ecommercebackendwing.service.AdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -30,15 +29,9 @@ public class AdminController {
 
     @GetMapping("/orders")
     @Operation(summary = "Get all orders for admin")
-    public ResponseEntity<?> getAllOrders(
+    public ResponseEntity<Page<OrderResponse>> getAllOrders(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        // Return paginated orders list
-        Map<String, Object> response = new HashMap<>();
-        response.put("orders", new ArrayList<>());
-        response.put("page", page);
-        response.put("size", size);
-        response.put("totalElements", 0);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(adminService.getAllOrders(page, size));
     }
 }
