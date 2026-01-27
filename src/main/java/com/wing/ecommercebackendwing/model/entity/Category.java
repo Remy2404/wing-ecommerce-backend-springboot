@@ -27,8 +27,8 @@ public class Category {
     private Integer sortOrder;
     @Column (name = "is_active", nullable = false)
     private Boolean isActive = true;
-    @ManyToMany(mappedBy = "categories" , cascade = CascadeType.ALL)
-    private List<Product> products;
     @OneToMany(mappedBy = "category" , cascade = CascadeType.ALL)
+    private List<Product> products;
+    @OneToMany(mappedBy = "parent" , cascade = CascadeType.ALL)
     private List<Category> subcategories;
 }

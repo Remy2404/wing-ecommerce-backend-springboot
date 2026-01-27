@@ -2,7 +2,6 @@ package com.wing.ecommercebackendwing.model.entity;
 
 import com.wing.ecommercebackendwing.model.enums.UserRole;
 import jakarta.persistence.*;
-import jakarta.persistence.criteria.Order;
 import lombok.Data;
 
 import java.time.Instant;
