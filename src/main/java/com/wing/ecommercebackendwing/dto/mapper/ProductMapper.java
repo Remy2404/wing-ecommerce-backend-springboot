@@ -18,7 +18,7 @@ public class ProductMapper {
                 .slug(product.getSlug())
                 .price(product.getPrice())
                 .comparePrice(product.getComparePrice())
-                .stock(product.getStock())
+                .stock(product.getStockQuantity())
                 .images(product.getImages())
                 .rating(product.getRating().doubleValue())
                 .build();
@@ -29,8 +29,8 @@ public class ProductMapper {
         product.setName(request.getName());
         product.setDescription(request.getDescription());
         product.setPrice(request.getPrice());
-        product.setStock(request.getStock());
-        product.setImages(request.getImages() != null ? String.join(",", request.getImages()) : null); // assuming comma separated
+        product.setStockQuantity(request.getStock());
+        product.setImages(request.getImages() != null ? String.join(",", request.getImages()) : null);
         return product;
     }
 

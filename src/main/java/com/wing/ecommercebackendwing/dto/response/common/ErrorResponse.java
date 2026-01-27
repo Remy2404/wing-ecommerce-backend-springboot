@@ -6,6 +6,7 @@ import lombok.Data;
 @Data
 @Builder
 public class ErrorResponse {
+    @Builder.Default
     private boolean success = false;
     private String error;
     private String code;

@@ -2,6 +2,7 @@ package com.wing.ecommercebackendwing.controller;
 
 import com.wing.ecommercebackendwing.dto.request.product.CreateProductRequest;
 import com.wing.ecommercebackendwing.dto.request.product.ProductFilterRequest;
+import com.wing.ecommercebackendwing.dto.request.product.UpdateProductRequest;
 import com.wing.ecommercebackendwing.dto.response.product.ProductResponse;
 import com.wing.ecommercebackendwing.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,9 +14,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.HashMap;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/products")
@@ -52,14 +50,10 @@ public class ProductController {
     @PreAuthorize("hasRole('ADMIN')")
     @SecurityRequirement(name = "Bearer Authentication")
     @Operation(summary = "Update product (Admin only)")
-    public ResponseEntity<?> updateProduct(
+    public ResponseEntity<ProductResponse> updateProduct(
             @PathVariable String slug,
-            @RequestBody Object updateRequest) {
-        // Find product by slug and update
-        // This needs a proper UpdateProductRequest DTO
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", "Product update not fully implemented");
-        response.put("slug", slug);
+            @Valid @RequestBody UpdateProductRequest updateRequest) {
+        ProductResponse response = productService.updateProduct(slug, updateRequest);
         return ResponseEntity.ok(response);
     }
 }

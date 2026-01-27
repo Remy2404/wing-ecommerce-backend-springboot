@@ -64,6 +64,12 @@ public class RefreshTokenService {
         });
     }
 
+    public boolean isRevoked(String token) {
+        return refreshTokenRepository.findByToken(token)
+                .map(RefreshToken::getRevoked)
+                .orElse(true);
+    }
+
     @Transactional
     public void revokeAllUserTokens(UUID userId) {
         refreshTokenRepository.revokeAllByUserId(userId);

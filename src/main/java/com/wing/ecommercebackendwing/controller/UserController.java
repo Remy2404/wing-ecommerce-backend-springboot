@@ -37,4 +37,11 @@ public class UserController {
         UserResponse response = userService.updateProfile(userId, updateRequest);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/stats")
+    @Operation(summary = "Get user dashboard statistics")
+    public ResponseEntity<Object> getStats(Authentication authentication) {
+        UUID userId = UUID.fromString(authentication.getName());
+        return ResponseEntity.ok(userService.getDashboardStats(userId));
+    }
 }

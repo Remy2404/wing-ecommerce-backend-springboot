@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface WishlistRepository extends JpaRepository<Wishlist, UUID> {
     List<Wishlist> findByUserId(UUID userId);
     boolean existsByUserIdAndProductId(UUID userId, UUID productId);
+    long countByUserId(UUID userId);
 }

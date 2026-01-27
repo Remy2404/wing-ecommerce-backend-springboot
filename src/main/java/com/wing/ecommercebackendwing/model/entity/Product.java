@@ -1,7 +1,10 @@
 package com.wing.ecommercebackendwing.model.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -11,6 +14,9 @@ import java.util.UUID;
 @Entity
 @Table(name = "products")
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Product {
 
     @Id
@@ -18,7 +24,7 @@ public class Product {
     private UUID id;
 
     @ManyToOne
-    @JoinColumn(name = "merchant_id", nullable = false)
+    @JoinColumn(name = "merchant_id")
     private Merchant merchant;
 
     @ManyToOne
@@ -42,21 +48,22 @@ public class Product {
     @Column(name = "cost_price", precision = 10, scale = 2)
     private BigDecimal costPrice;
 
-    @Column(nullable = false)
-    private Integer stock = 0;
+    @Column(name = "stock_quantity", nullable = false)
+    @Builder.Default
+    private Integer stockQuantity = 0;
 
     @Column(name = "low_stock_threshold")
+    @Builder.Default
     private Integer lowStockThreshold = 10;
 
     private String images;
 
-    @Column(name = "stock_quantity", nullable = false)
-    private Integer stockQuantity = 0;
-
     @Column(name = "is_active", nullable = false)
+    @Builder.Default
     private Boolean isActive = true;
 
     @Column(name = "is_featured", nullable = false)
+    @Builder.Default
     private Boolean isFeatured = false;
 
     @Column(precision = 10, scale = 2)
@@ -71,15 +78,19 @@ public class Product {
     private String barcode;
 
     @Column(precision = 3, scale = 2)
+    @Builder.Default
     private BigDecimal rating = BigDecimal.ZERO;
 
     @Column(name = "review_count")
+    @Builder.Default
     private Integer reviewCount = 0;
 
     @Column(name = "sold_count")
+    @Builder.Default
     private Integer soldCount = 0;
 
     @Column(name = "view_count")
+    @Builder.Default
     private Integer viewCount = 0;
 
     @Column(name = "created_at", nullable = false)

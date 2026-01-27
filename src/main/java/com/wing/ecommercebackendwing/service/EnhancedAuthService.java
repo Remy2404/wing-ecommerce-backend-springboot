@@ -67,7 +67,6 @@ public class EnhancedAuthService {
 
         // Generate tokens (user can use the app but with limited access until verified)
         String accessToken = jwtTokenProvider.generateToken(createAuthentication(savedUser));
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(savedUser.getId());
 
         return AuthResponse.builder()
                 .token(accessToken)
@@ -129,7 +128,6 @@ public class EnhancedAuthService {
 
         // Generate tokens
         String accessToken = jwtTokenProvider.generateToken(authentication);
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
 
         return AuthResponse.builder()
                 .token(accessToken)
@@ -139,6 +137,9 @@ public class EnhancedAuthService {
 
     @Transactional
     public AuthResponse refreshToken(String refreshTokenStr) {
+        if (refreshTokenService.isRevoked(refreshTokenStr)) { // Corrected 'token' to 'refreshTokenStr'
+            throw new TokenRefreshException(refreshTokenStr, "Refresh token is revoked");
+        }
         RefreshToken refreshToken = refreshTokenService.findByToken(refreshTokenStr)
                 .orElseThrow(() -> new TokenRefreshException(refreshTokenStr, "Refresh token not found"));
 

@@ -1,5 +1,6 @@
 package com.wing.ecommercebackendwing.controller;
 
+import com.wing.ecommercebackendwing.dto.request.order.WishlistRequest;
 import com.wing.ecommercebackendwing.service.WishlistService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -31,7 +32,7 @@ public class WishlistController {
     @PostMapping("/add")
     @Operation(summary = "Add product to wishlist")
     public ResponseEntity<Object> addToWishlist(Authentication authentication,
-                                                @RequestBody Object addRequest) {
+                                                @RequestBody WishlistRequest addRequest) {
         UUID userId = UUID.fromString(authentication.getName());
         Object response = wishlistService.addToWishlist(userId, addRequest);
         return ResponseEntity.ok(response);

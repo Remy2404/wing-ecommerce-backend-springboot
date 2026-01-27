@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
     List<Notification> findByUserIdAndIsReadFalse(UUID userId);
+    long countByUserIdAndIsReadFalse(UUID userId);
 }

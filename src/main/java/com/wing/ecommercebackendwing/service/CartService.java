@@ -8,7 +8,6 @@ import com.wing.ecommercebackendwing.model.entity.Cart;
 import com.wing.ecommercebackendwing.model.entity.CartItem;
 import com.wing.ecommercebackendwing.model.entity.Product;
 import com.wing.ecommercebackendwing.model.entity.User;
-import com.wing.ecommercebackendwing.repository.CartItemRepository;
 import com.wing.ecommercebackendwing.repository.CartRepository;
 import com.wing.ecommercebackendwing.repository.ProductRepository;
 import com.wing.ecommercebackendwing.repository.UserRepository;
@@ -27,7 +26,6 @@ import java.util.UUID;
 public class CartService {
 
     private final CartRepository cartRepository;
-    private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
 

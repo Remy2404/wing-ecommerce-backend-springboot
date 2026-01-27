@@ -47,11 +47,11 @@ public class OrderController {
     }
 
     @GetMapping("/{orderNumber}")
-    @Operation(summary = "Get order by number")
-    public ResponseEntity<OrderResponse> getOrderByNumber(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable String orderNumber) {
-        OrderResponse order = orderService.getOrderByNumber(userDetails.getUserId(), orderNumber);
-        return ResponseEntity.ok(order);
+    @Operation(summary = "Get order detail by number")
+    public ResponseEntity<OrderResponse> getOrderDetail(Authentication authentication,
+                                                        @PathVariable String orderNumber) {
+        UUID userId = UUID.fromString(authentication.getName());
+        OrderResponse response = orderService.getOrderByNumber(userId, orderNumber);
+        return ResponseEntity.ok(response);
     }
 }

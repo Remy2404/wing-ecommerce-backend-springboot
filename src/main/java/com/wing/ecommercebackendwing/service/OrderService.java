@@ -10,7 +10,6 @@ import com.wing.ecommercebackendwing.model.entity.OrderItem;
 import com.wing.ecommercebackendwing.model.enums.OrderStatus;
 import com.wing.ecommercebackendwing.repository.CartRepository;
 import com.wing.ecommercebackendwing.repository.OrderRepository;
-import com.wing.ecommercebackendwing.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -32,7 +31,6 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
-    private final PaymentRepository paymentRepository;
 
     @Transactional
     public OrderResponse createOrder(UUID userId, CreateOrderRequest request) {
