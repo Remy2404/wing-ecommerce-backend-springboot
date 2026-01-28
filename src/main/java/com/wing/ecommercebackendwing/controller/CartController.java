@@ -11,7 +11,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,18 +27,16 @@ public class CartController {
 
     @GetMapping
     @Operation(summary = "Get user's cart")
-    public ResponseEntity<CartResponse> getCart(Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        CartResponse response = cartService.getCart(userId);
+    public ResponseEntity<CartResponse> getCart(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        CartResponse response = cartService.getCart(userDetails.getUserId());
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/add")
     @Operation(summary = "Add item to cart")
-    public ResponseEntity<CartResponse> addToCart(Authentication authentication,
+    public ResponseEntity<CartResponse> addToCart(@AuthenticationPrincipal CustomUserDetails userDetails,
                                                   @Valid @RequestBody AddToCartRequest request) {
-        UUID userId = UUID.fromString(authentication.getName());
-        CartResponse response = cartService.addToCart(userId, request);
+        CartResponse response = cartService.addToCart(userDetails.getUserId(), request);
         return ResponseEntity.ok(response);
     }
 
@@ -54,18 +51,16 @@ public class CartController {
 
     @DeleteMapping("/remove/{itemId}")
     @Operation(summary = "Remove item from cart")
-    public ResponseEntity<CartResponse> removeItem(Authentication authentication,
+    public ResponseEntity<CartResponse> removeItem(@AuthenticationPrincipal CustomUserDetails userDetails,
                                                    @PathVariable UUID itemId) {
-        UUID userId = UUID.fromString(authentication.getName());
-        CartResponse response = cartService.removeItem(userId, itemId);
+        CartResponse response = cartService.removeItem(userDetails.getUserId(), itemId);
         return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/clear")
     @Operation(summary = "Clear all items from cart")
-    public ResponseEntity<Void> clearCart(Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        cartService.clearCart(userId);
+    public ResponseEntity<Void> clearCart(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        cartService.clearCart(userDetails.getUserId());
         return ResponseEntity.ok().build();
     }
 }

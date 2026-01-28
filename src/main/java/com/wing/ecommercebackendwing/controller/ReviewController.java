@@ -2,6 +2,7 @@ package com.wing.ecommercebackendwing.controller;
 
 import com.wing.ecommercebackendwing.dto.request.review.CreateReviewRequest;
 import com.wing.ecommercebackendwing.dto.response.review.ReviewResponse;
+import com.wing.ecommercebackendwing.security.CustomUserDetails;
 import com.wing.ecommercebackendwing.service.ReviewService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -9,7 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,10 +27,9 @@ public class ReviewController {
 
     @PostMapping
     @Operation(summary = "Create product review")
-    public ResponseEntity<ReviewResponse> createReview(Authentication authentication,
+    public ResponseEntity<ReviewResponse> createReview(@AuthenticationPrincipal CustomUserDetails userDetails,
                                                         @Valid @RequestBody CreateReviewRequest request) {
-        UUID userId = UUID.fromString(authentication.getName());
-        ReviewResponse response = reviewService.createReview(userId, request);
+        ReviewResponse response = reviewService.createReview(userDetails.getUserId(), request);
         return ResponseEntity.ok(response);
     }
 

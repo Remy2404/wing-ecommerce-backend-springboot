@@ -11,12 +11,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -29,10 +25,9 @@ public class OrderController {
 
     @PostMapping
     @Operation(summary = "Create new order")
-    public ResponseEntity<OrderResponse> createOrder(Authentication authentication,
+    public ResponseEntity<OrderResponse> createOrder(@AuthenticationPrincipal CustomUserDetails userDetails,
                                                      @Valid @RequestBody CreateOrderRequest request) {
-        UUID userId = UUID.fromString(authentication.getName());
-        OrderResponse response = orderService.createOrder(userId, request);
+        OrderResponse response = orderService.createOrder(userDetails.getUserId(), request);
         return ResponseEntity.ok(response);
     }
 
@@ -48,10 +43,9 @@ public class OrderController {
 
     @GetMapping("/{orderNumber}")
     @Operation(summary = "Get order detail by number")
-    public ResponseEntity<OrderResponse> getOrderDetail(Authentication authentication,
+    public ResponseEntity<OrderResponse> getOrderDetail(@AuthenticationPrincipal CustomUserDetails userDetails,
                                                         @PathVariable String orderNumber) {
-        UUID userId = UUID.fromString(authentication.getName());
-        OrderResponse response = orderService.getOrderByNumber(userId, orderNumber);
+        OrderResponse response = orderService.getOrderByNumber(userDetails.getUserId(), orderNumber);
         return ResponseEntity.ok(response);
     }
 }

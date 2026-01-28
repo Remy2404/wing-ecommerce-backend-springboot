@@ -15,6 +15,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/products")
 @RequiredArgsConstructor
@@ -27,6 +29,13 @@ public class ProductController {
     @Operation(summary = "Get products with filtering and pagination")
     public ResponseEntity<Page<ProductResponse>> getProducts(@ModelAttribute ProductFilterRequest filter) {
         Page<ProductResponse> response = productService.getProducts(filter);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/all")
+    @Operation(summary = "Get all products without pagination")
+    public ResponseEntity<List<ProductResponse>> getAllProducts() {
+        List<ProductResponse> response = productService.getAllProducts();
         return ResponseEntity.ok(response);
     }
 

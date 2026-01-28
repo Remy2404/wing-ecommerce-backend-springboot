@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -45,6 +46,12 @@ public class ProductService {
         }
 
         return products.map(ProductMapper::toResponse);
+    }
+
+    public List<ProductResponse> getAllProducts() {
+        return productRepository.findAll().stream()
+                .map(ProductMapper::toResponse)
+                .toList();
     }
 
     public ProductResponse getProductBySlug(String slug) {
