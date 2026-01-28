@@ -8,15 +8,19 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
+@Validated
 @Tag(name = "Orders", description = "Order management APIs")
 @SecurityRequirement(name = "Bearer Authentication")
 public class OrderController {
@@ -35,8 +39,8 @@ public class OrderController {
     @Operation(summary = "Get user's orders")
     public ResponseEntity<Page<OrderResponse>> getUserOrders(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         Page<OrderResponse> orders = orderService.getUserOrders(userDetails.getUserId(), page, size);
         return ResponseEntity.ok(orders);
     }

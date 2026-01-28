@@ -5,8 +5,10 @@ import com.wing.ecommercebackendwing.dto.response.payment.KHQRResponse;
 import com.wing.ecommercebackendwing.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -14,6 +16,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/payments")
 @RequiredArgsConstructor
+@Validated
 @Tag(name = "Payments", description = "KHQR Payment integration APIs")
 public class PaymentController {
 
@@ -28,7 +31,7 @@ public class PaymentController {
 
     @GetMapping("/verify/{md5}")
     @Operation(summary = "Verify payment by MD5 hash")
-    public ResponseEntity<ApiResponse<String>> verifyPayment(@PathVariable String md5) {
+    public ResponseEntity<ApiResponse<String>> verifyPayment(@PathVariable @NotBlank String md5) {
         boolean isVerified = paymentService.verifyPaymentByMd5(md5);
         if (isVerified) {
             return ResponseEntity.ok(ApiResponse.<String>builder()
