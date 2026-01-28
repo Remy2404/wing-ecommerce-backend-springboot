@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>KHQR Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      padding: 40px;
+    }
+
+    .card {
+      max-width: 420px;
+      margin: auto;
+      background: #fff;
+      padding: 24px;
+      border-radius: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .row {
+      margin-bottom: 12px;
+    }
+
+    .label {
+      font-weight: bold;
+      color: #555;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .value {
+      word-break: break-all;
+      color: #222;
+    }
+
+    .mono {
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    .btn {
+      margin-top: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      border: none;
+      border-radius: 4px;
+      background: #007bff;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .qr {
+      text-align: center;
+      margin-top: 20px;
+    }
+
+    .qr img {
+      border: 1px solid #ddd;
+      padding: 6px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+
+    .small {
+      font-size: 12px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>KHQR Payment Test</h2>
+
+  <div class="row">
+    <span class="label">Order Number</span>
+    <div class="value" id="orderNumber"></div>
+    <button class="btn" onclick="copy('orderNumber')">Copy</button>
+  </div>
+
+  <div class="row">
+    <span class="label">Amount</span>
+    <div class="value" id="amount"></div>
+  </div>
+
+  <div class="row">
+    <span class="label">MD5</span>
+    <div class="value mono" id="md5"></div>
+    <button class="btn" onclick="copy('md5')">Copy</button>
+  </div>
+
+  <div class="qr">
+    <span class="label">QR Code</span>
+    <img id="qrImage" alt="KHQR QR Code" />
+    <div class="value mono small" id="qrData"></div>
+    <button class="btn" onclick="copy('qrData')">Copy QR Data</button>
+  </div>
+</div>
+
+<script>
+  // 🔹 Test data (paste API response here)
+  const data = {
+    amount: "0.01",
+    md5: "affef02e9f67ae792f6fe1a9c9b255cb",
+    orderNumber: "ORD-1769577476351-F6FE7E58",
+    qrData: "00020101021230430014phon_ramy@bkrt0114phon_ramy@bkrt0203ABA52045999530384054040.015802KH5907MyStore6010Phnom Penh99170013176958036219563046C50"
+  };
+
+  // Render data
+  document.getElementById("orderNumber").innerText = data.orderNumber;
+  document.getElementById("amount").innerText = "$" + data.amount;
+  document.getElementById("md5").innerText = data.md5;
+  document.getElementById("qrData").innerText = data.qrData;
+
+  // Generate QR image
+  document.getElementById("qrImage").src =
+    "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" +
+    encodeURIComponent(data.qrData);
+
+  // Copy helper
+  function copy(id) {
+    const text = document.getElementById(id).innerText;
+    navigator.clipboard.writeText(text);
+    alert("Copied");
+  }
+</script>
+
+</body>
+</html>

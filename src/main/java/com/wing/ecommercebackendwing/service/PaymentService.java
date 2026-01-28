@@ -51,10 +51,15 @@ public class PaymentService {
 
         kh.org.nbc.bakong_khqr.model.KHQRResponse<KHQRData> sdkResponse = BakongKHQR.generateMerchant(merchantInfo);
 
-        if (sdkResponse.getKHQRStatus() != null && sdkResponse.getKHQRStatus().getErrorCode() != 0) {
-            log.error("Failed to generate KHQR code. Error code: {}, Message: {}", 
-                    sdkResponse.getKHQRStatus().getErrorCode(), sdkResponse.getKHQRStatus().getMessage());
-            throw new RuntimeException("Failed to generate KHQR code: " + sdkResponse.getKHQRStatus().getMessage());
+        // Check for errors - handle null errorCode gracefully
+        if (sdkResponse.getKHQRStatus() != null) {
+            Integer errorCode = sdkResponse.getKHQRStatus().getErrorCode();
+            // Treat null errorCode as success (0)
+            if (errorCode != null && errorCode != 0) {
+                log.error("Failed to generate KHQR code. Error code: {}, Message: {}", 
+                        errorCode, sdkResponse.getKHQRStatus().getMessage());
+                throw new RuntimeException("Failed to generate KHQR code: " + sdkResponse.getKHQRStatus().getMessage());
+            }
         }
 
         String qrData = sdkResponse.getData().getQr();

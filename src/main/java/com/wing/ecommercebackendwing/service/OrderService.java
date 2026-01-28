@@ -3,11 +3,14 @@ package com.wing.ecommercebackendwing.service;
 import com.wing.ecommercebackendwing.dto.mapper.OrderMapper;
 import com.wing.ecommercebackendwing.dto.request.order.CreateOrderRequest;
 import com.wing.ecommercebackendwing.dto.response.order.OrderResponse;
+import com.wing.ecommercebackendwing.model.entity.Address;
 import com.wing.ecommercebackendwing.model.entity.Cart;
+import com.wing.ecommercebackendwing.model.entity.Merchant;
 import com.wing.ecommercebackendwing.model.entity.Order;
 import com.wing.ecommercebackendwing.model.entity.OrderItem;
 
 import com.wing.ecommercebackendwing.model.enums.OrderStatus;
+import com.wing.ecommercebackendwing.repository.AddressRepository;
 import com.wing.ecommercebackendwing.repository.CartRepository;
 import com.wing.ecommercebackendwing.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +34,7 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
+    private final AddressRepository addressRepository;
 
     @Transactional
     public OrderResponse createOrder(UUID userId, CreateOrderRequest request) {
@@ -47,9 +51,29 @@ public class OrderService {
             throw new RuntimeException("Unauthorized access");
         }
 
+        // Get merchant from first cart item (assuming all items from same merchant)
+        Merchant merchant = cart.getItems().get(0).getProduct().getMerchant();
+        if (merchant == null) {
+            throw new RuntimeException("Product merchant not found");
+        }
+
+        // Create delivery address from shipping request
+        Address deliveryAddress = new Address();
+        deliveryAddress.setUser(cart.getUser());
+        deliveryAddress.setStreet(request.getShippingAddress().getStreet());
+        deliveryAddress.setCity(request.getShippingAddress().getCity());
+        deliveryAddress.setProvince(request.getShippingAddress().getState());
+        deliveryAddress.setPostalCode(request.getShippingAddress().getZipCode());
+        deliveryAddress.setLabel("Order Delivery");
+        deliveryAddress.setIsDefault(false);
+        deliveryAddress.setCreatedAt(Instant.now());
+        Address savedAddress = addressRepository.save(deliveryAddress);
+
         // Create order
         Order order = new Order();
         order.setUser(cart.getUser());
+        order.setMerchant(merchant);
+        order.setDeliveryAddress(savedAddress);
         order.setOrderNumber(generateOrderNumber());
         order.setStatus(OrderStatus.PENDING);
         order.setOrderDate(Instant.now());
@@ -79,7 +103,19 @@ public class OrderService {
             totalAmount = totalAmount.add(itemSubtotal);
         }
 
-        order.setTotalAmount(totalAmount);
+        // Calculate order totals
+        BigDecimal subtotal = totalAmount;
+        BigDecimal tax = BigDecimal.ZERO; // TODO: Implement tax calculation if needed
+        BigDecimal deliveryFee = BigDecimal.ZERO; // TODO: Calculate delivery fee based on address/distance
+        BigDecimal discount = BigDecimal.ZERO; // TODO: Apply promotions/coupons if any
+        BigDecimal total = subtotal.add(deliveryFee).add(tax).subtract(discount);
+
+        order.setSubtotal(subtotal);
+        order.setTax(tax);
+        order.setDeliveryFee(deliveryFee);
+        order.setDiscount(discount);
+        order.setTotal(total);
+        order.setTotalAmount(total); // totalAmount should equal total
 
         // Save order
         Order savedOrder = orderRepository.save(order);

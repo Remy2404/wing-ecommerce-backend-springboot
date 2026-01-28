@@ -19,6 +19,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Payments", description = "KHQR Payment integration APIs")
+@io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "Bearer Authentication")
 public class PaymentController {
 
     private final PaymentService paymentService;
@@ -26,8 +27,8 @@ public class PaymentController {
     @PostMapping("/khqr/{orderId}")
     @Operation(summary = "Generate KHQR for an order")
     public ResponseEntity<KHQRResponse> generateKHQR(
-            @Parameter(description = "Order ID", required = true)
-            @PathVariable UUID orderId) {
+            @Parameter(description = "Order ID", required = true, example = "a6c458c0-bfb9-48da-8d9e-fd6c6c8425ed")
+            @PathVariable(name = "orderId") UUID orderId) {
         KHQRResponse response = paymentService.generateKHQR(orderId);
         return ResponseEntity.ok(response);
     }
@@ -36,7 +37,7 @@ public class PaymentController {
     @Operation(summary = "Verify payment by MD5 hash")
     public ResponseEntity<ApiResponse<String>> verifyPayment(
             @Parameter(description = "MD5 hash from payment callback", example = "a1b2c3d4e5f6", required = true)
-            @PathVariable @NotBlank String md5) {
+            @PathVariable(name = "md5") @NotBlank String md5) {
         boolean isVerified = paymentService.verifyPaymentByMd5(md5);
         if (isVerified) {
             return ResponseEntity.ok(ApiResponse.<String>builder()
