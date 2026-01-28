@@ -5,6 +5,7 @@ import com.wing.ecommercebackendwing.dto.response.promotion.PromotionResponse;
 import com.wing.ecommercebackendwing.security.CustomUserDetails;
 import com.wing.ecommercebackendwing.service.PromotionService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -26,6 +27,7 @@ public class PromotionController {
     @Operation(summary = "Validate a promotion code")
     public ResponseEntity<PromotionResponse> validatePromotion(
             @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "Promotion code to validate", example = "SAVE20", required = true)
             @RequestParam String code) {
         return ResponseEntity.ok(promotionService.validatePromotion(code, userDetails.getUserId()));
     }

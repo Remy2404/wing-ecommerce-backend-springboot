@@ -4,10 +4,15 @@ import com.wing.ecommercebackendwing.dto.request.auth.*;
 import com.wing.ecommercebackendwing.dto.response.auth.AuthResponse;
 import com.wing.ecommercebackendwing.dto.response.auth.TwoFactorResponse;
 import com.wing.ecommercebackendwing.dto.response.common.MessageResponse;
+import com.wing.ecommercebackendwing.dto.response.common.ValidationErrorResponse;
 import com.wing.ecommercebackendwing.security.CustomUserDetails;
 import com.wing.ecommercebackendwing.service.EnhancedAuthService;
 import com.wing.ecommercebackendwing.service.TwoFactorAuthService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +33,11 @@ public class EnhancedAuthController {
 
     @PostMapping("/register")
     @Operation(summary = "Register a new user with email verification")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "User registered successfully"),
+        @ApiResponse(responseCode = "400", description = "Validation error",
+            content = @Content(schema = @Schema(implementation = ValidationErrorResponse.class)))
+    })
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         AuthResponse response = authService.register(request);
         return ResponseEntity.ok(response);
@@ -35,6 +45,12 @@ public class EnhancedAuthController {
 
     @PostMapping("/login")
     @Operation(summary = "Authenticate user (may require 2FA)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Login successful"),
+        @ApiResponse(responseCode = "400", description = "Validation error",
+            content = @Content(schema = @Schema(implementation = ValidationErrorResponse.class))),
+        @ApiResponse(responseCode = "401", description = "Invalid credentials")
+    })
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(response);
@@ -51,6 +67,12 @@ public class EnhancedAuthController {
 
     @PostMapping("/refresh")
     @Operation(summary = "Get new access token using refresh token")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
+        @ApiResponse(responseCode = "400", description = "Validation error",
+            content = @Content(schema = @Schema(implementation = ValidationErrorResponse.class))),
+        @ApiResponse(responseCode = "401", description = "Invalid or expired refresh token")
+    })
     public ResponseEntity<AuthResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
         AuthResponse response = authService.refreshToken(request.getRefreshToken());
         return ResponseEntity.ok(response);
@@ -58,6 +80,11 @@ public class EnhancedAuthController {
 
     @PostMapping("/verify-email")
     @Operation(summary = "Verify email address")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Email verified successfully"),
+        @ApiResponse(responseCode = "400", description = "Validation error or invalid token",
+            content = @Content(schema = @Schema(implementation = ValidationErrorResponse.class)))
+    })
     public ResponseEntity<MessageResponse> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
         authService.verifyEmail(request.getToken());
         return ResponseEntity.ok(MessageResponse.builder()
@@ -68,6 +95,11 @@ public class EnhancedAuthController {
 
     @PostMapping("/forgot-password")
     @Operation(summary = "Request password reset email")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Password reset email sent"),
+        @ApiResponse(responseCode = "400", description = "Validation error",
+            content = @Content(schema = @Schema(implementation = ValidationErrorResponse.class)))
+    })
     public ResponseEntity<MessageResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.initiatePasswordReset(request.getEmail());
         return ResponseEntity.ok(MessageResponse.builder()
@@ -78,6 +110,11 @@ public class EnhancedAuthController {
 
     @PostMapping("/reset-password")
     @Operation(summary = "Reset password with token")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Password reset successfully"),
+        @ApiResponse(responseCode = "400", description = "Validation error or invalid token",
+            content = @Content(schema = @Schema(implementation = ValidationErrorResponse.class)))
+    })
     public ResponseEntity<MessageResponse> resetPassword(@Valid @RequestBody CompletePasswordResetRequest request) {
         authService.resetPasswordWithToken(request.getToken(), request.getNewPassword());
         return ResponseEntity.ok(MessageResponse.builder()

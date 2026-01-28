@@ -4,6 +4,7 @@ import com.wing.ecommercebackendwing.dto.response.common.ApiResponse;
 import com.wing.ecommercebackendwing.dto.response.payment.KHQRResponse;
 import com.wing.ecommercebackendwing.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -24,14 +25,18 @@ public class PaymentController {
 
     @PostMapping("/khqr/{orderId}")
     @Operation(summary = "Generate KHQR for an order")
-    public ResponseEntity<KHQRResponse> generateKHQR(@PathVariable UUID orderId) {
+    public ResponseEntity<KHQRResponse> generateKHQR(
+            @Parameter(description = "Order ID", required = true)
+            @PathVariable UUID orderId) {
         KHQRResponse response = paymentService.generateKHQR(orderId);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/verify/{md5}")
     @Operation(summary = "Verify payment by MD5 hash")
-    public ResponseEntity<ApiResponse<String>> verifyPayment(@PathVariable @NotBlank String md5) {
+    public ResponseEntity<ApiResponse<String>> verifyPayment(
+            @Parameter(description = "MD5 hash from payment callback", example = "a1b2c3d4e5f6", required = true)
+            @PathVariable @NotBlank String md5) {
         boolean isVerified = paymentService.verifyPaymentByMd5(md5);
         if (isVerified) {
             return ResponseEntity.ok(ApiResponse.<String>builder()

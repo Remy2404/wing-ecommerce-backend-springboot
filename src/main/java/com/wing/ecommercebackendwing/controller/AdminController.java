@@ -3,6 +3,7 @@ package com.wing.ecommercebackendwing.controller;
 import com.wing.ecommercebackendwing.dto.response.order.OrderResponse;
 import com.wing.ecommercebackendwing.service.AdminService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
@@ -34,7 +35,9 @@ public class AdminController {
     @GetMapping("/orders")
     @Operation(summary = "Get all orders for admin")
     public ResponseEntity<Page<OrderResponse>> getAllOrders(
+            @Parameter(description = "Page number (0-indexed)", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Page size (1-100)", example = "20")
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return ResponseEntity.ok(adminService.getAllOrders(page, size));
     }
