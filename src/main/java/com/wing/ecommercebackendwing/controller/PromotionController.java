@@ -28,7 +28,7 @@ public class PromotionController {
     public ResponseEntity<PromotionResponse> validatePromotion(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "Promotion code to validate", example = "SAVE20", required = true)
-            @RequestParam String code) {
+            @RequestParam(name = "code") String code) {
         return ResponseEntity.ok(promotionService.validatePromotion(code, userDetails.getUserId()));
     }
 

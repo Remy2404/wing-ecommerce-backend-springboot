@@ -19,36 +19,32 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Payments", description = "KHQR Payment integration APIs")
-@io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "Bearer Authentication")
 public class PaymentController {
 
     private final PaymentService paymentService;
 
     @PostMapping("/khqr/{orderId}")
     @Operation(summary = "Generate KHQR for an order")
+    @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "Bearer Authentication")
     public ResponseEntity<KHQRResponse> generateKHQR(
-            @Parameter(description = "Order ID", required = true, example = "a6c458c0-bfb9-48da-8d9e-fd6c6c8425ed")
+            @Parameter(description = "Order ID", required = true)
             @PathVariable(name = "orderId") UUID orderId) {
         KHQRResponse response = paymentService.generateKHQR(orderId);
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/verify/{md5}")
-    @Operation(summary = "Verify payment by MD5 hash")
-    public ResponseEntity<ApiResponse<String>> verifyPayment(
-            @Parameter(description = "MD5 hash from payment callback", example = "a1b2c3d4e5f6", required = true)
+    @PostMapping("/verify/md5/{md5}")
+    @Operation(summary = "Verify payment by MD5")
+    public ResponseEntity<ApiResponse<String>> verifyPaymentByMd5(
+            @Parameter(description = "32 chars MD5 hash", required = true)
             @PathVariable(name = "md5") @NotBlank String md5) {
-        boolean isVerified = paymentService.verifyPaymentByMd5(md5);
-        if (isVerified) {
-            return ResponseEntity.ok(ApiResponse.<String>builder()
-                    .success(true)
-                    .message("Payment verified successfully")
-                    .build());
-        } else {
-            return ResponseEntity.ok(ApiResponse.<String>builder()
-                    .success(false)
-                    .message("Payment not yet complete")
-                    .build());
-        }
+        String verificationResult = paymentService.verifyPaymentByMd5(md5);
+        
+        boolean isSuccess = verificationResult.startsWith("SUCCESS");
+        
+        return ResponseEntity.ok(ApiResponse.<String>builder()
+                .success(isSuccess)
+                .message(verificationResult)
+                .build());
     }
 }

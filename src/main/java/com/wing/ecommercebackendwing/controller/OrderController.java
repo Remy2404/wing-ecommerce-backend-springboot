@@ -58,9 +58,9 @@ public class OrderController {
     public ResponseEntity<Page<OrderResponse>> getUserOrders(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "Page number (0-indexed)", example = "0")
-            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(name = "page", defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size (1-100)", example = "20")
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+            @RequestParam(name = "size", defaultValue = "20") @Min(1) @Max(100) int size) {
         Page<OrderResponse> orders = orderService.getUserOrders(userDetails.getUserId(), page, size);
         return ResponseEntity.ok(orders);
     }
@@ -75,7 +75,7 @@ public class OrderController {
     public ResponseEntity<OrderResponse> getOrderDetail(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "Order number", example = "ORD-20260128-ABC123", required = true)
-            @PathVariable String orderNumber) {
+            @PathVariable(name = "orderNumber") String orderNumber) {
         OrderResponse response = orderService.getOrderByNumber(userDetails.getUserId(), orderNumber);
         return ResponseEntity.ok(response);
     }

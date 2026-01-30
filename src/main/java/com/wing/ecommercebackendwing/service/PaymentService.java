@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -31,6 +32,9 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final BakongConfig bakongConfig;
     private final RestTemplate restTemplate;
+
+    @org.springframework.beans.factory.annotation.Value("${khqr.api-token}")
+    private String bakongApiToken;
 
     @Transactional
     public com.wing.ecommercebackendwing.dto.response.payment.KHQRResponse generateKHQR(UUID orderId) {
@@ -75,7 +79,7 @@ public class PaymentService {
         payment.setMethod(PaymentMethod.KHQR);
         payment.setStatus(PaymentStatus.PENDING);
         payment.setAmount(order.getTotalAmount());
-        payment.setTransactionId(md5); 
+        payment.setMd5(md5);
         paymentRepository.save(payment);
 
         log.info("Generated KHQR for order {} with MD5 {}", order.getOrderNumber(), md5);
@@ -88,36 +92,55 @@ public class PaymentService {
                 .build();
     }
 
-    @Transactional
-    public boolean verifyPaymentByMd5(String md5) {
-        Payment payment = paymentRepository.findByTransactionId(md5)
-                .orElseThrow(() -> new RuntimeException("Payment record not found for MD5: " + md5));
 
-        if (payment.getStatus() == PaymentStatus.COMPLETED) {
-            return true;
+    @Transactional
+    public String verifyPaymentByMd5(String md5) {
+        // Normalize MD5 to lowercase as some SDKs/APIs might vary in casing
+        String normalizedMd5 = md5.trim().toLowerCase();
+        
+        Payment payment = paymentRepository.findByMd5(normalizedMd5)
+                .orElse(null);
+
+        if (payment == null) {
+            log.warn("Payment record not found for MD5: {}", normalizedMd5);
+            return "ERROR: Payment record not found for MD5 " + normalizedMd5;
         }
 
-        String url = bakongConfig.getApiBaseUrl() + "/v1/check_transaction_by_md5";
+        if (payment.getStatus() == PaymentStatus.COMPLETED) {
+            return "SUCCESS: Payment already completed";
+        }
+
+        String baseUrl = bakongConfig.getApiBaseUrl();
+        String url = (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + "v1/check_transaction_by_md5";
         
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(bakongConfig.getApiToken());
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.setBearerAuth(bakongApiToken);
+        
+        log.info("Verifying payment with Bakong Open API for MD5: {}", normalizedMd5);
 
-        Map<String, String> requestBody = Map.of("md5", md5);
+        Map<String, String> requestBody = Map.of("md5", normalizedMd5);
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(requestBody, headers);
 
+        return executeVerificationRequest(url, entity, normalizedMd5, payment);
+    }
+
+
+    private String executeVerificationRequest(String url, HttpEntity<Map<String, String>> entity, String transactionId, Payment payment) {
         try {
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                     url, HttpMethod.POST, entity, new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Object responseCodeObj = response.getBody().get("responseCode");
-                // Open API might return responseCode as String or Integer
-                if (responseCodeObj != null && ("0".equals(responseCodeObj.toString()) || Integer.valueOf(0).equals(responseCodeObj))) {
-                    // Success!
+                Map<String, Object> responseBody = response.getBody();
+                Object responseCodeObj = responseBody.get("responseCode");
+                Object responseMessageObj = responseBody.get("responseMessage");
+                
+                if (responseCodeObj != null && "0".equals(String.valueOf(responseCodeObj))) {
                     payment.setStatus(PaymentStatus.COMPLETED);
                     payment.setPaidAt(Instant.now());
-                    payment.setGatewayResponse(response.getBody().toString());
+                    payment.setGatewayResponse(responseBody.toString());
                     paymentRepository.save(payment);
 
                     Order order = payment.getOrder();
@@ -125,18 +148,28 @@ public class PaymentService {
                     order.setUpdatedAt(Instant.now());
                     orderRepository.save(order);
 
-                    log.info("Payment verified successfully for MD5 {}", md5);
-                    return true;
+                    log.info("Payment verified successfully for transaction {}", transactionId);
+                    return "SUCCESS: " + responseMessageObj;
+                } else {
+                    String errorMsg = responseMessageObj != null ? responseMessageObj.toString() : "Unknown error";
+                    log.warn("Payment verification failed for transaction {}: {}", transactionId, errorMsg);
+                    return "PENDING: " + errorMsg;
                 }
+            } else {
+                return "ERROR: Bakong API returned status " + response.getStatusCode();
             }
         } catch (Exception e) {
-            log.error("Error verifying payment for MD5 {}: {}", md5, e.getMessage());
+            log.error("Error verifying payment for transaction {}: {}", transactionId, e.getMessage());
+            return "ERROR: " + e.getMessage();
         }
-
-        return false;
     }
 
-    public boolean verifyPayment(String transactionId) {
-        return verifyPaymentByMd5(transactionId);
+    @Transactional
+    public String verifyPayment(String transactionId) {
+        if (transactionId == null) {
+            return "ERROR: Transaction ID is null";
+        }
+        
+        return verifyPaymentByMd5(transactionId.trim());
     }
 }

@@ -22,8 +22,8 @@ public class Payment {
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
-    @Column(name = "transaction_id", length = 255, unique = true)
-    private String transactionId;
+    @Column(name = "md5", length = 128)
+    private String md5;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -39,7 +39,7 @@ public class Payment {
     @Column(length = 3, nullable = false)
     private String currency = "USD";
 
-    @Column(name = "gateway_response")
+    @Column(name = "gateway_response", columnDefinition = "TEXT")
     private String gatewayResponse;
 
     @Column(name = "paid_at")

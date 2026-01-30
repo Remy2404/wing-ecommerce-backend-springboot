@@ -81,7 +81,7 @@ public class CartController {
     public ResponseEntity<CartResponse> removeItem(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Parameter(description = "Cart item ID to remove", required = true)
-            @PathVariable UUID itemId) {
+            @PathVariable(name = "itemId") UUID itemId) {
         CartResponse response = cartService.removeItem(userDetails.getUserId(), itemId);
         return ResponseEntity.ok(response);
     }

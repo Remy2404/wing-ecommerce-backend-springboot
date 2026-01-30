@@ -42,7 +42,7 @@ public class WishlistController {
     @DeleteMapping("/remove/{productId}")
     @Operation(summary = "Remove product from wishlist")
     public ResponseEntity<Void> removeFromWishlist(@AuthenticationPrincipal CustomUserDetails userDetails,
-                                                  @PathVariable UUID productId) {
+                                                  @PathVariable(name = "productId") UUID productId) {
         wishlistService.removeFromWishlist(userDetails.getUserId(), productId);
         return ResponseEntity.ok().build();
     }

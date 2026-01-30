@@ -25,8 +25,8 @@ public class DeliveryController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Assign a driver to a delivery (Admin only)")
     public ResponseEntity<?> assignDriver(
-            @PathVariable UUID deliveryId,
-            @PathVariable UUID driverId) {
+            @PathVariable(name = "deliveryId") UUID deliveryId,
+            @PathVariable(name = "driverId") UUID driverId) {
         return ResponseEntity.ok(deliveryService.assignDriver(deliveryId, driverId));
     }
 
@@ -34,9 +34,9 @@ public class DeliveryController {
     @PreAuthorize("hasAnyRole('ADMIN', 'DRIVER')")
     @Operation(summary = "Update delivery status (Admin/Driver only)")
     public ResponseEntity<Void> updateStatus(
-            @PathVariable UUID deliveryId,
-            @RequestParam DeliveryStatus status,
-            @RequestParam(required = false) String notes) {
+            @PathVariable(name = "deliveryId") UUID deliveryId,
+            @RequestParam(name = "status") DeliveryStatus status,
+            @RequestParam(name = "notes", required = false) String notes) {
         deliveryService.updateDeliveryStatus(deliveryId, status, notes);
         return ResponseEntity.ok().build();
     }

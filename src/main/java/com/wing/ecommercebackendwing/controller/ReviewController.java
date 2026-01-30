@@ -35,7 +35,7 @@ public class ReviewController {
 
     @GetMapping("/products/{productId}")
     @Operation(summary = "Get reviews for a product")
-    public ResponseEntity<List<ReviewResponse>> getProductReviews(@PathVariable UUID productId) {
+    public ResponseEntity<List<ReviewResponse>> getProductReviews(@PathVariable(name = "productId") UUID productId) {
         List<ReviewResponse> response = reviewService.getProductReviews(productId);
         return ResponseEntity.ok(response);
     }

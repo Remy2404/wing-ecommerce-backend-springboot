@@ -63,7 +63,7 @@ public class ProductController {
     })
     public ResponseEntity<ProductResponse> getProductBySlug(
             @Parameter(description = "Product slug (URL-friendly identifier)", example = "wireless-headphones", required = true)
-            @PathVariable String slug) {
+            @PathVariable(name = "slug") String slug) {
         ProductResponse response = productService.getProductBySlug(slug);
         return ResponseEntity.ok(response);
     }
@@ -98,7 +98,7 @@ public class ProductController {
     })
     public ResponseEntity<ProductResponse> updateProduct(
             @Parameter(description = "Product slug to update", example = "wireless-headphones", required = true)
-            @PathVariable String slug,
+            @PathVariable(name = "slug") String slug,
             @Valid @RequestBody UpdateProductRequest updateRequest) {
         ProductResponse response = productService.updateProduct(slug, updateRequest);
         return ResponseEntity.ok(response);
@@ -108,7 +108,7 @@ public class ProductController {
     @PreAuthorize("hasRole('ADMIN')")
     @SecurityRequirement(name = "Bearer Authentication")
     @Operation(summary = "Delete product (Admin only)")
-    public ResponseEntity<Void> deleteProduct(@PathVariable String slug) {
+    public ResponseEntity<Void> deleteProduct(@PathVariable(name = "slug") String slug) {
         productService.deleteProduct(slug);
         return ResponseEntity.ok().build();
     }

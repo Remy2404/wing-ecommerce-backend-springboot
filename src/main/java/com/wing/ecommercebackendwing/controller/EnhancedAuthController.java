@@ -59,8 +59,8 @@ public class EnhancedAuthController {
     @PostMapping("/login/2fa")
     @Operation(summary = "Complete login with 2FA code")
     public ResponseEntity<AuthResponse> loginWith2FA(
-            @RequestParam String email,
-            @RequestParam int code) {
+            @RequestParam(name = "email") String email,
+            @RequestParam(name = "code") int code) {
         AuthResponse response = authService.verify2FAAndLogin(email, code);
         return ResponseEntity.ok(response);
     }

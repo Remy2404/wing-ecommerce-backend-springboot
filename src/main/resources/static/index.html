@@ -100,9 +100,15 @@
     <button class="btn" onclick="copy('md5')">Copy</button>
   </div>
 
+  <div class="row">
+    <span class="label">Full Hash (SHA-256)</span>
+    <div class="value mono" id="hash"></div>
+    <button class="btn" onclick="copy('hash')">Copy Hash</button>
+  </div>
+
   <div class="qr">
     <span class="label">QR Code</span>
-    <img id="qrImage" alt="KHQR QR Code" />
+    <img id="qrImage" alt="KHQR QR Code" />z
     <div class="value mono small" id="qrData"></div>
     <button class="btn" onclick="copy('qrData')">Copy QR Data</button>
   </div>
@@ -111,16 +117,17 @@
 <script>
   // 🔹 Test data (paste API response here)
   const data = {
-    amount: "0.01",
-    md5: "affef02e9f67ae792f6fe1a9c9b255cb",
-    orderNumber: "ORD-1769577476351-F6FE7E58",
-    qrData: "00020101021230430014phon_ramy@bkrt0114phon_ramy@bkrt0203ABA52045999530384054040.015802KH5907MyStore6010Phnom Penh99170013176958036219563046C50"
+  "amount": "0.01",
+  "md5": "aaad6ba89e1045b3ba46fa8542555882",
+  "orderNumber": "ORD-1769577476351-F6FE7E58",
+  "qrData": "00020101021230430014phon_ramy@bkrt0114phon_ramy@bkrt0203ABA52045999530384054040.015802KH5907MyStore6010Phnom Penh99170013176976419442163045251"
   };
 
   // Render data
   document.getElementById("orderNumber").innerText = data.orderNumber;
   document.getElementById("amount").innerText = "$" + data.amount;
   document.getElementById("md5").innerText = data.md5;
+  document.getElementById("hash").innerText = data.hash || "N/A";
   document.getElementById("qrData").innerText = data.qrData;
 
   // Generate QR image
