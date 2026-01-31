@@ -6,6 +6,8 @@ import com.wing.ecommercebackendwing.dto.response.auth.TwoFactorResponse;
 import com.wing.ecommercebackendwing.dto.response.common.MessageResponse;
 import com.wing.ecommercebackendwing.dto.response.common.ValidationErrorResponse;
 import com.wing.ecommercebackendwing.security.CustomUserDetails;
+import com.wing.ecommercebackendwing.security.jwt.JwtTokenProvider;
+import com.wing.ecommercebackendwing.security.jwt.TokenBlacklistService;
 import com.wing.ecommercebackendwing.service.EnhancedAuthService;
 import com.wing.ecommercebackendwing.service.TwoFactorAuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,10 +36,12 @@ public class AuthController {
 
     private final EnhancedAuthService authService;
     private final TwoFactorAuthService twoFactorAuthService;
+    private final TokenBlacklistService tokenBlacklistService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Value("${cookie.secure:true}")
     private boolean cookieSecure;
-
+ 
     @Value("${jwt.refresh-token.expiration:2592000000}")
     private long refreshTokenDurationMs;
 
@@ -176,10 +180,22 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    @Operation(summary = "Logout and revoke refresh tokens")
+    @Operation(summary = "Logout and revoke all tokens")
     public ResponseEntity<MessageResponse> logout(
             @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             HttpServletResponse httpResponse) {
+        
+        // Blacklist access token if present
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String accessToken = authHeader.substring(7);
+            String jti = jwtTokenProvider.getJtiFromToken(accessToken);
+            if (jti != null) {
+                tokenBlacklistService.blacklist(jti);
+            }
+        }
+        
+        // Revoke refresh tokens in database
         authService.logout(userDetails.getUserId());
         
         // Delete refresh token cookie

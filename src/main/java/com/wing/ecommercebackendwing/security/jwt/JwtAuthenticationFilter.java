@@ -24,6 +24,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final UserDetailsService userDetailsService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -36,6 +37,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (StringUtils.hasText(jwt)
                     && tokenProvider.validateToken(jwt)
                     && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+                // Check if token is blacklisted
+                String jti = tokenProvider.getJtiFromToken(jwt);
+                if (jti != null && tokenBlacklistService.isBlacklisted(jti)) {
+                    log.debug("Rejected blacklisted token: {}", jti);
+                    filterChain.doFilter(request, response);
+                    return;
+                }
 
                 String username = tokenProvider.getUsernameFromToken(jwt);
 

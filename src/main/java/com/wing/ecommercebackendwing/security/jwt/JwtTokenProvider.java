@@ -71,5 +71,22 @@ public class JwtTokenProvider {
         }
         return false;
     }
+
+    /**
+     * Extract the JTI (token ID) from a JWT token.
+     */
+    public String getJtiFromToken(String token) {
+        try {
+            return Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .getId();
+        } catch (Exception e) {
+            log.warn("Failed to extract JTI from token: {}", e.getMessage());
+            return null;
+        }
+    }
 }
 
