@@ -48,7 +48,7 @@ public class CustomUserDetailsService implements UserDetailsService {
             this.authorities = Collections.singletonList(
                     new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
             );
-            
+
             // Check if account is locked
             boolean isLocked = Boolean.TRUE.equals(user.getAccountLocked());
             if (isLocked && user.getLockedUntil() != null) {

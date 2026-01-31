@@ -128,28 +128,33 @@ public class EnhancedAuthService {
 
         // Generate tokens
         String accessToken = jwtTokenProvider.generateToken(authentication);
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
 
         return AuthResponse.builder()
                 .token(accessToken)
+                .refreshToken(refreshToken.getToken())
                 .user(buildUserSummary(user))
                 .build();
     }
 
     @Transactional
     public AuthResponse refreshToken(String refreshTokenStr) {
-        if (refreshTokenService.isRevoked(refreshTokenStr)) { // Corrected 'token' to 'refreshTokenStr'
-            throw new TokenRefreshException(refreshTokenStr, "Refresh token is revoked");
-        }
         RefreshToken refreshToken = refreshTokenService.findByToken(refreshTokenStr)
                 .orElseThrow(() -> new TokenRefreshException(refreshTokenStr, "Refresh token not found"));
 
         refreshToken = refreshTokenService.verifyExpiration(refreshToken);
 
         User user = refreshToken.getUser();
+
+        // Revoke the used refresh token and create a new one
+        refreshTokenService.revokeToken(refreshTokenStr);
+        RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getId());
+
         String newAccessToken = jwtTokenProvider.generateToken(createAuthentication(user));
 
         return AuthResponse.builder()
                 .token(newAccessToken)
+                .refreshToken(newRefreshToken.getToken())
                 .user(buildUserSummary(user))
                 .build();
     }

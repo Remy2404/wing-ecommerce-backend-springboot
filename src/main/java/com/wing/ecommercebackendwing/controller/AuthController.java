@@ -26,7 +26,7 @@ import java.util.UUID;
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 @Tag(name = "Enhanced Authentication", description = "Authentication with email verification, 2FA, and refresh tokens")
-public class EnhancedAuthController {
+public class AuthController {
 
     private final EnhancedAuthService authService;
     private final TwoFactorAuthService twoFactorAuthService;

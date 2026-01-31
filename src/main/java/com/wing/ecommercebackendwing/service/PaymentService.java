@@ -1,6 +1,7 @@
 package com.wing.ecommercebackendwing.service;
 
 import com.wing.ecommercebackendwing.config.BakongConfig;
+import com.wing.ecommercebackendwing.dto.response.payment.KHQRResponse;
 import com.wing.ecommercebackendwing.model.entity.Order;
 import com.wing.ecommercebackendwing.model.entity.Payment;
 import com.wing.ecommercebackendwing.model.enums.OrderStatus;
@@ -9,6 +10,7 @@ import com.wing.ecommercebackendwing.model.enums.PaymentStatus;
 import com.wing.ecommercebackendwing.repository.OrderRepository;
 import com.wing.ecommercebackendwing.repository.PaymentRepository;
 import kh.org.nbc.bakong_khqr.BakongKHQR;
+import kh.org.nbc.bakong_khqr.model.KHQRCurrency;
 import kh.org.nbc.bakong_khqr.model.KHQRData;
 import kh.org.nbc.bakong_khqr.model.MerchantInfo;
 import lombok.RequiredArgsConstructor;
@@ -33,11 +35,12 @@ public class PaymentService {
     private final BakongConfig bakongConfig;
     private final RestTemplate restTemplate;
 
+
     @org.springframework.beans.factory.annotation.Value("${khqr.api-token}")
     private String bakongApiToken;
 
     @Transactional
-    public com.wing.ecommercebackendwing.dto.response.payment.KHQRResponse generateKHQR(UUID orderId) {
+    public KHQRResponse generateKHQR(UUID orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
@@ -50,7 +53,7 @@ public class PaymentService {
         merchantInfo.setMerchantId(bakongConfig.getMerchant().getId());
         merchantInfo.setMerchantName(bakongConfig.getMerchant().getName());
         merchantInfo.setAcquiringBank(bakongConfig.getMerchant().getAcquiringBank());
-        merchantInfo.setCurrency(kh.org.nbc.bakong_khqr.model.KHQRCurrency.USD); 
+        merchantInfo.setCurrency(KHQRCurrency.USD);
         merchantInfo.setAmount(order.getTotalAmount().doubleValue());
 
         kh.org.nbc.bakong_khqr.model.KHQRResponse<KHQRData> sdkResponse = BakongKHQR.generateMerchant(merchantInfo);
@@ -84,7 +87,7 @@ public class PaymentService {
 
         log.info("Generated KHQR for order {} with MD5 {}", order.getOrderNumber(), md5);
 
-        return com.wing.ecommercebackendwing.dto.response.payment.KHQRResponse.builder()
+        return KHQRResponse.builder()
                 .qrData(qrData)
                 .md5(md5)
                 .orderNumber(order.getOrderNumber())

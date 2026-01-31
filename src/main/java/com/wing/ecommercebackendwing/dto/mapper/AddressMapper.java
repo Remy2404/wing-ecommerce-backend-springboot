@@ -26,9 +26,8 @@ public class AddressMapper {
         Address address = new Address();
         address.setStreet(request.getStreet());
         address.setCity(request.getCity());
-        address.setProvince(request.getState()); // assuming state = province
+        address.setProvince(request.getState());
         address.setPostalCode(request.getZipCode());
-        // no fullName, phone in Address
         return address;
     }
 }
