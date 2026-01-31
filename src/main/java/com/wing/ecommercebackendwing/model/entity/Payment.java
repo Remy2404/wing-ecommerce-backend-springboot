@@ -25,6 +25,9 @@ public class Payment {
     @Column(name = "md5", length = 128)
     private String md5;
 
+    @Column(name = "transaction_id")
+    private UUID transactionId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentMethod method;

@@ -1,5 +1,7 @@
 package com.wing.ecommercebackendwing.util;
 
+import lombok.Getter;
+
 import java.util.regex.Pattern;
 
 public class PasswordValidator {
@@ -34,6 +36,7 @@ public class PasswordValidator {
         return new ValidationResult(true, "Password is valid");
     }
 
+    @Getter
     public static class ValidationResult {
         private final boolean valid;
         private final String message;
@@ -43,12 +46,5 @@ public class PasswordValidator {
             this.message = message;
         }
 
-        public boolean isValid() {
-            return valid;
-        }
-
-        public String getMessage() {
-            return message;
-        }
     }
 }
