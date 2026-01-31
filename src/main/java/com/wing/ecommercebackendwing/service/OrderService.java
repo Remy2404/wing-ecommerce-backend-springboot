@@ -115,7 +115,7 @@ public class OrderService {
         order.setDeliveryFee(deliveryFee);
         order.setDiscount(discount);
         order.setTotal(total);
-        order.setTotalAmount(total); // totalAmount should equal total
+        order.setTotalAmount(total);
 
         // Save order
         Order savedOrder = orderRepository.save(order);

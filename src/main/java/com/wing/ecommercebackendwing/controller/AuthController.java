@@ -14,8 +14,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -30,6 +34,25 @@ public class AuthController {
 
     private final EnhancedAuthService authService;
     private final TwoFactorAuthService twoFactorAuthService;
+
+    @Value("${cookie.secure:true}")
+    private boolean cookieSecure;
+
+    @Value("${jwt.refresh-token.expiration:2592000000}")
+    private long refreshTokenDurationMs;
+
+    private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
+    private static final String REFRESH_TOKEN_COOKIE_PATH = "/api/auth";
+
+    private ResponseCookie createRefreshTokenCookie(String tokenValue, long maxAgeSeconds) {
+        return ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, tokenValue)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite("Strict")
+                .path(REFRESH_TOKEN_COOKIE_PATH)
+                .maxAge(maxAgeSeconds)
+                .build();
+    }
 
     @PostMapping("/register")
     @Operation(summary = "Register a new user with email verification")
@@ -51,8 +74,17 @@ public class AuthController {
             content = @Content(schema = @Schema(implementation = ValidationErrorResponse.class))),
         @ApiResponse(responseCode = "401", description = "Invalid credentials")
     })
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request, HttpServletResponse httpResponse) {
         AuthResponse response = authService.login(request);
+        
+        // Set refresh token as HttpOnly cookie (not accessible via JavaScript)
+        if (response.getRefreshToken() != null) {
+            long maxAgeSeconds = refreshTokenDurationMs / 1000;
+            ResponseCookie cookie = createRefreshTokenCookie(response.getRefreshToken(), maxAgeSeconds);
+            httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+            response.setRefreshToken(null); // Remove from response body
+        }
+        
         return ResponseEntity.ok(response);
     }
 
@@ -60,21 +92,41 @@ public class AuthController {
     @Operation(summary = "Complete login with 2FA code")
     public ResponseEntity<AuthResponse> loginWith2FA(
             @RequestParam(name = "email") String email,
-            @RequestParam(name = "code") int code) {
+            @RequestParam(name = "code") int code,
+            HttpServletResponse httpResponse) {
         AuthResponse response = authService.verify2FAAndLogin(email, code);
+        
+        // Set refresh token as HttpOnly cookie
+        if (response.getRefreshToken() != null) {
+            long maxAgeSeconds = refreshTokenDurationMs / 1000;
+            ResponseCookie cookie = createRefreshTokenCookie(response.getRefreshToken(), maxAgeSeconds);
+            httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+            response.setRefreshToken(null);
+        }
+        
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/refresh")
-    @Operation(summary = "Get new access token using refresh token")
+    @Operation(summary = "Get new access token using refresh token from HttpOnly cookie")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
-        @ApiResponse(responseCode = "400", description = "Validation error",
-            content = @Content(schema = @Schema(implementation = ValidationErrorResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Missing or invalid refresh token cookie"),
         @ApiResponse(responseCode = "401", description = "Invalid or expired refresh token")
     })
-    public ResponseEntity<AuthResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
-        AuthResponse response = authService.refreshToken(request.getRefreshToken());
+    public ResponseEntity<AuthResponse> refreshToken(
+            @CookieValue(name = "refreshToken") String refreshToken,
+            HttpServletResponse httpResponse) {
+        AuthResponse response = authService.refreshToken(refreshToken);
+        
+        // Set new refresh token as HttpOnly cookie
+        if (response.getRefreshToken() != null) {
+            long maxAgeSeconds = refreshTokenDurationMs / 1000;
+            ResponseCookie cookie = createRefreshTokenCookie(response.getRefreshToken(), maxAgeSeconds);
+            httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+            response.setRefreshToken(null);
+        }
+        
         return ResponseEntity.ok(response);
     }
 
@@ -125,8 +177,15 @@ public class AuthController {
 
     @PostMapping("/logout")
     @Operation(summary = "Logout and revoke refresh tokens")
-    public ResponseEntity<MessageResponse> logout(@AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<MessageResponse> logout(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            HttpServletResponse httpResponse) {
         authService.logout(userDetails.getUserId());
+        
+        // Delete refresh token cookie
+        ResponseCookie cookie = createRefreshTokenCookie("", 0);
+        httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        
         return ResponseEntity.ok(MessageResponse.builder()
                 .success(true)
                 .message("Logged out successfully")
