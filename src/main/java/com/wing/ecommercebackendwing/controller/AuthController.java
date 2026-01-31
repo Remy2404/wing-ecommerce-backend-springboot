@@ -86,7 +86,7 @@ public class AuthController {
             long maxAgeSeconds = refreshTokenDurationMs / 1000;
             ResponseCookie cookie = createRefreshTokenCookie(response.getRefreshToken(), maxAgeSeconds);
             httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-            response.setRefreshToken(null); // Remove from response body
+            response.setRefreshToken(null);
         }
         
         return ResponseEntity.ok(response);
