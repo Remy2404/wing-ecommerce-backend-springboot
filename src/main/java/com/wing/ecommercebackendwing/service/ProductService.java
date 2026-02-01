@@ -9,6 +9,7 @@ import com.wing.ecommercebackendwing.model.entity.Category;
 import com.wing.ecommercebackendwing.model.entity.Product;
 import com.wing.ecommercebackendwing.repository.CategoryRepository;
 import com.wing.ecommercebackendwing.repository.ProductRepository;
+import com.wing.ecommercebackendwing.util.SlugGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -28,6 +29,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final SlugGenerator slugGenerator;
 
     public Page<ProductResponse> getProducts(ProductFilterRequest filter) {
         Pageable pageable = PageRequest.of(
@@ -71,7 +73,7 @@ public class ProductService {
 
         Product product = Product.builder()
                 .name(request.getName())
-                .slug(generateSlug(request.getName()))
+                .slug(slugGenerator.generateSlug(request.getName()))
                 .description(request.getDescription())
                 .price(request.getPrice())
                 .category(category)
@@ -123,9 +125,7 @@ public class ProductService {
         return ProductMapper.toResponse(savedProduct);
     }
 
-    private String generateSlug(String name) {
-        return name.toLowerCase().replaceAll("[^a-z0-9\\s]", "").replaceAll("\\s+", "-") + "-" + UUID.randomUUID().toString().substring(0, 5);
-    }
+
 
     @Transactional
     public void deleteProduct(String slug) {

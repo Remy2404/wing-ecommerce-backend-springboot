@@ -13,6 +13,7 @@ import com.wing.ecommercebackendwing.model.enums.OrderStatus;
 import com.wing.ecommercebackendwing.repository.AddressRepository;
 import com.wing.ecommercebackendwing.repository.CartRepository;
 import com.wing.ecommercebackendwing.repository.OrderRepository;
+import com.wing.ecommercebackendwing.util.OrderNumberGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -35,6 +36,10 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
     private final AddressRepository addressRepository;
+    private final OrderNumberGenerator orderNumberGenerator;
+    private final TaxService taxService;
+    private final DeliveryFeeService deliveryFeeService;
+    private final DiscountService discountService;
 
     @Transactional
     public OrderResponse createOrder(UUID userId, CreateOrderRequest request) {
@@ -74,7 +79,7 @@ public class OrderService {
         order.setUser(cart.getUser());
         order.setMerchant(merchant);
         order.setDeliveryAddress(savedAddress);
-        order.setOrderNumber(generateOrderNumber());
+        order.setOrderNumber(orderNumberGenerator.generateOrderNumber());
         order.setStatus(OrderStatus.PENDING);
         order.setOrderDate(Instant.now());
         order.setCreatedAt(Instant.now());
@@ -103,11 +108,18 @@ public class OrderService {
             totalAmount = totalAmount.add(itemSubtotal);
         }
 
-        // Calculate order totals
+        // Calculate order totals using services
         BigDecimal subtotal = totalAmount;
-        BigDecimal tax = BigDecimal.ZERO; // TODO: Implement tax calculation if needed
-        BigDecimal deliveryFee = BigDecimal.ZERO; // TODO: Calculate delivery fee based on address/distance
-        BigDecimal discount = BigDecimal.ZERO; // TODO: Apply promotions/coupons if any
+        BigDecimal tax = taxService.calculateTax(subtotal);
+        BigDecimal deliveryFee = deliveryFeeService.calculateFee(
+                request.getDistanceKm() != null ? request.getDistanceKm() : BigDecimal.ZERO);
+        BigDecimal discount = discountService.calculateDiscount(subtotal, request.getCouponCode());
+        
+        // Apply FREEDEL coupon
+        if (discountService.isFreeDeliveryCoupon(request.getCouponCode())) {
+            deliveryFee = BigDecimal.ZERO;
+        }
+        
         BigDecimal total = subtotal.add(deliveryFee).add(tax).subtract(discount);
 
         order.setSubtotal(subtotal);
@@ -170,7 +182,4 @@ public class OrderService {
         return OrderMapper.toResponse(savedOrder);
     }
 
-    private String generateOrderNumber() {
-        return "ORD-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-    }
 }

@@ -30,4 +30,10 @@ public class CreateOrderRequest {
     @Schema(description = "Payment method", example = "KHQR", allowableValues = {"KHQR", "CASH_ON_DELIVERY"})
     @NotBlank(message = "Payment method is required")
     private String paymentMethod;
+
+    @Schema(description = "Coupon code for discount", example = "SAVE10")
+    private String couponCode;
+
+    @Schema(description = "Delivery distance in kilometers", example = "10.5")
+    private java.math.BigDecimal distanceKm;
 }
