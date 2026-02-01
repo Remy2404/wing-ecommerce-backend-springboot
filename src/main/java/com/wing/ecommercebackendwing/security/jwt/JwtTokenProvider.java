@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import com.wing.ecommercebackendwing.model.entity.User;
 import java.util.UUID;
 
 @Component
@@ -38,6 +39,25 @@ public class JwtTokenProvider {
                 .setSubject(username)
                 .setIssuer("wing-api")
                 .setAudience("wing-client")
+                .setIssuedAt(now)
+                .setExpiration(expiry)
+                .signWith(getSigningKey(), Jwts.SIG.HS256)
+                .compact();
+    }
+
+    public String generateToken(User user) {
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + jwtExpirationInMs);
+
+        return Jwts.builder()
+                .setId(UUID.randomUUID().toString())
+                .setSubject(user.getEmail())
+                .setIssuer("wing-api")
+                .setAudience("wing-client")
+                .claim("role", user.getRole().name())
+                .claim("name", user.getFirstName() + " " + user.getLastName())
+                .claim("avatar", user.getAvatar())
+                .claim("id", user.getId())
                 .setIssuedAt(now)
                 .setExpiration(expiry)
                 .signWith(getSigningKey(), Jwts.SIG.HS256)

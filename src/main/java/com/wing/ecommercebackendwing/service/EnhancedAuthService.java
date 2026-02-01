@@ -67,7 +67,7 @@ public class EnhancedAuthService {
         }
 
         // Generate tokens (user can use the app but with limited access until verified)
-        String accessToken = jwtTokenProvider.generateToken(createAuthentication(savedUser));
+        String accessToken = jwtTokenProvider.generateToken(savedUser);
 
         return AuthResponse.builder()
                 .token(accessToken)
@@ -128,7 +128,7 @@ public class EnhancedAuthService {
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         // Generate tokens
-        String accessToken = jwtTokenProvider.generateToken(authentication);
+        String accessToken = jwtTokenProvider.generateToken(user);
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
 
         return AuthResponse.builder()
@@ -151,7 +151,7 @@ public class EnhancedAuthService {
         refreshTokenService.revokeToken(refreshTokenStr);
         RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getId());
 
-        String newAccessToken = jwtTokenProvider.generateToken(createAuthentication(user));
+        String newAccessToken = jwtTokenProvider.generateToken(user);
 
         return AuthResponse.builder()
                 .token(newAccessToken)
@@ -235,6 +235,7 @@ public class EnhancedAuthService {
                 .email(user.getEmail())
                 .name(user.getFirstName() + " " + user.getLastName())
                 .role(user.getRole().name())
+                .avatar(user.getAvatar())
                 .build();
     }
 }

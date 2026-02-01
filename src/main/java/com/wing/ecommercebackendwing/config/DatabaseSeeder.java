@@ -41,6 +41,42 @@ public class DatabaseSeeder implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
+    // Central image pool for unique product images
+    private int imageIndex = 0;
+    private final List<String> imagePool = List.of(
+        "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",  // headphones
+        "https://images.unsplash.com/photo-1484704849700-f032a568e944?w=800&q=80",  // headphones alt
+        "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80",  // watch
+        "https://images.unsplash.com/photo-1589003077984-894e133dabab?w=800&q=80",  // speaker
+        "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80",  // tshirt
+        "https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80",  // sunglasses
+        "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=800&q=80",  // power bank
+        "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=800&q=80",  // coffee mugs
+        "https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?w=800&q=80",  // yoga mat
+        "https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=800&q=80",  // gaming mouse
+        "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=800&q=80",  // denim jacket
+        "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=800&q=80",  // bluetooth speaker
+        "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80",  // leather wallet
+        "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800&q=80",  // hoodie
+        "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&q=80",  // throw blanket
+        "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80",  // dumbbells
+        "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=800&q=80",  // tablet
+        "https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=800&q=80",  // backpack
+        "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",  // sneakers
+        "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&q=80",  // wall art
+        "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=800&q=80"   // resistance bands
+    );
+
+    /**
+     * Returns the next unique image URL from the pool.
+     * Cycles through the pool if more products than images.
+     */
+    private String nextImage() {
+        String image = imagePool.get(imageIndex % imagePool.size());
+        imageIndex++;
+        return image;
+    }
+
     @Override
     @Transactional
     public void run(String... args) throws Exception {
@@ -60,27 +96,9 @@ public class DatabaseSeeder implements CommandLineRunner {
             // Ignore if column doesn't exist or already nullable
         }
 
-        // Clear existing data (in order of dependencies)
+        // Clear existing data using TRUNCATE CASCADE for proper FK handling
         System.out.println("🗑️ Clearing existing data...");
-        promotionUsageRepository.deleteAllInBatch();
-        promotionRepository.deleteAllInBatch();
-        wingPointsTransactionRepository.deleteAllInBatch();
-        wingPointsRepository.deleteAllInBatch();
-        notificationRepository.deleteAllInBatch();
-        wishlistRepository.deleteAllInBatch();
-        reviewRepository.deleteAllInBatch();
-        orderItemRepository.deleteAllInBatch();
-        paymentRepository.deleteAllInBatch();
-        deliveryRepository.deleteAllInBatch();
-        orderRepository.deleteAllInBatch();
-        cartItemRepository.deleteAllInBatch();
-        cartRepository.deleteAllInBatch();
-        productVariantRepository.deleteAllInBatch();
-        productRepository.deleteAllInBatch();
-        merchantRepository.deleteAllInBatch();
-        addressRepository.deleteAllInBatch();
-        categoryRepository.deleteAllInBatch();
-        userRepository.deleteAllInBatch();
+        jdbcTemplate.execute("TRUNCATE TABLE promotion_usage, promotions, wing_points_transactions, wing_points, notifications, wishlists, reviews, order_items, payments, deliveries, orders, cart_items, carts, product_variants, products, merchants, addresses, categories, users RESTART IDENTITY CASCADE");
 
         // 1. Create Categories
         System.out.println("📁 Creating categories...");
@@ -225,7 +243,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .price(new BigDecimal("0.01"))
                 .comparePrice(new BigDecimal("0.02"))
                 .stockQuantity(15)
-                .images("https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80,https://images.unsplash.com/photo-1484704849700-f032a568e944?w=800&q=80")
+                .images(nextImage() + "," + nextImage())
                 .rating(new BigDecimal("4.8"))
                 .reviewCount(124)
                 .isFeatured(true)
@@ -244,7 +262,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .description("A timeless design meets modern craftsmanship. Swiss movement, sapphire crystal, and genuine Italian leather strap.")
                 .price(new BigDecimal("0.01"))
                 .stockQuantity(8)
-                .images("https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80")
+                .images(nextImage())
                 .rating(new BigDecimal("4.9"))
                 .reviewCount(89)
                 .isFeatured(true)
@@ -264,7 +282,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .price(new BigDecimal("0.01"))
                 .comparePrice(new BigDecimal("0.02"))
                 .stockQuantity(25)
-                .images("https://images.unsplash.com/photo-1589003077984-894e133dabab?w=800&q=80")
+                .images(nextImage())
                 .rating(new BigDecimal("4.6"))
                 .reviewCount(203)
                 .isFeatured(true)
@@ -283,7 +301,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .description("Sustainably sourced 100% organic cotton. Soft, breathable, and eco-friendly.")
                 .price(new BigDecimal("0.01"))
                 .stockQuantity(50)
-                .images("https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80")
+                .images(nextImage())
                 .rating(new BigDecimal("4.5"))
                 .reviewCount(67)
                 .isFeatured(false)
@@ -303,7 +321,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .price(new BigDecimal("0.01"))
                 .comparePrice(new BigDecimal("0.02"))
                 .stockQuantity(3)
-                .images("https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&q=80")
+                .images(nextImage())
                 .rating(new BigDecimal("4.7"))
                 .reviewCount(45)
                 .isFeatured(false)
@@ -315,21 +333,21 @@ public class DatabaseSeeder implements CommandLineRunner {
         products.add(p5);
 
         // Add more products to match the JS seed
-        products.add(Product.builder().merchant(m1).category(electronics).name("Portable Power Bank").slug("portable-power-bank").description("20000mAh capacity with fast charging support. Charge multiple devices simultaneously.").price(new BigDecimal("0.01")).comparePrice(new BigDecimal("0.02")).stockQuantity(100).images("https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=800&q=80").rating(new BigDecimal("4.4")).reviewCount(312).isFeatured(false).soldCount(1450).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m2).category(homeLiving).name("Ceramic Coffee Mug Set").slug("ceramic-coffee-mug-set").description("Handcrafted ceramic mugs. Set of 4 in earthy tones. Microwave and dishwasher safe.").price(new BigDecimal("0.01")).stockQuantity(30).images("https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=800&q=80").rating(new BigDecimal("4.8")).reviewCount(156).isFeatured(false).soldCount(670).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m2).category(sportsFitness).name("Yoga Mat Premium").slug("yoga-mat-premium").description("Extra thick 6mm cushioning with non-slip surface. Perfect for yoga, pilates, and workouts.").price(new BigDecimal("0.01")).comparePrice(new BigDecimal("0.02")).stockQuantity(40).images("https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?w=800&q=80").rating(new BigDecimal("4.6")).reviewCount(89).isFeatured(false).soldCount(340).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m1).category(electronics).name("Wireless Gaming Mouse").slug("wireless-gaming-mouse").description("Ultra-responsive with customizable RGB lighting. 16000 DPI sensor for precision.").price(new BigDecimal("0.01")).comparePrice(new BigDecimal("0.02")).stockQuantity(45).images("https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=800&q=80").rating(new BigDecimal("4.7")).reviewCount(234).isFeatured(true).soldCount(560).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m2).category(clothing).name("Denim Jacket Classic").slug("denim-jacket-classic").description("Timeless denim jacket with a modern fit. Premium quality cotton denim.").price(new BigDecimal("0.01")).stockQuantity(20).images("https://images.unsplash.com/photo-1551028719-00167b16eac5?w=800&q=80").rating(new BigDecimal("4.8")).reviewCount(98).isFeatured(true).soldCount(280).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m1).category(electronics).name("Bluetooth Portable Speaker").slug("bluetooth-portable-speaker").description("Waterproof wireless speaker with 360° sound and 12-hour battery life. Perfect for outdoor adventures.").price(new BigDecimal("0.02")).comparePrice(new BigDecimal("0.03")).stockQuantity(30).images("https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=800&q=80").rating(new BigDecimal("4.5")).reviewCount(178).isFeatured(true).soldCount(420).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m2).category(accessories).name("Genuine Leather Wallet").slug("genuine-leather-wallet").description("Handcrafted genuine leather wallet with RFID protection and multiple card slots.").price(new BigDecimal("0.02")).stockQuantity(25).images("https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80").rating(new BigDecimal("4.7")).reviewCount(134).isFeatured(false).soldCount(290).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m2).category(clothing).name("Cotton Hoodie Premium").slug("cotton-hoodie-premium").description("Ultra-soft 100% cotton hoodie with kangaroo pocket and ribbed cuffs. Perfect for casual wear.").price(new BigDecimal("0.02")).comparePrice(new BigDecimal("0.03")).stockQuantity(35).images("https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800&q=80").rating(new BigDecimal("4.6")).reviewCount(87).isFeatured(false).soldCount(380).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m2).category(homeLiving).name("Faux Fur Throw Blanket").slug("faux-fur-throw-blanket").description("Luxuriously soft faux fur throw blanket. Machine washable and perfect for cozy evenings.").price(new BigDecimal("0.02")).stockQuantity(18).images("https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&q=80").rating(new BigDecimal("4.9")).reviewCount(76).isFeatured(false).soldCount(195).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m2).category(sportsFitness).name("Adjustable Dumbbells Set").slug("adjustable-dumbbells-set").description("5-50lb adjustable dumbbells with quick-change mechanism. Space-saving design for home workouts.").price(new BigDecimal("0.02")).comparePrice(new BigDecimal("0.03")).stockQuantity(12).images("https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80").rating(new BigDecimal("4.8")).reviewCount(145).isFeatured(true).soldCount(167).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m1).category(electronics).name("10-inch Android Tablet").slug("10-inch-android-tablet").description("High-performance tablet with 128GB storage, 8MP camera, and all-day battery life.").price(new BigDecimal("0.02")).comparePrice(new BigDecimal("0.03")).stockQuantity(22).images("https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=800&q=80").rating(new BigDecimal("4.4")).reviewCount(98).isFeatured(false).soldCount(310).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m2).category(accessories).name("Laptop Backpack Professional").slug("laptop-backpack-professional").description("Water-resistant laptop backpack with dedicated compartments and ergonomic design.").price(new BigDecimal("0.02")).stockQuantity(28).images("https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80").rating(new BigDecimal("4.6")).reviewCount(203).isFeatured(true).soldCount(445).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m2).category(clothing).name("Running Sneakers Lightweight").slug("running-sneakers-lightweight").description("Breathable mesh running shoes with cushioning and responsive sole. Perfect for daily runs.").price(new BigDecimal("0.02")).comparePrice(new BigDecimal("0.03")).stockQuantity(40).images("https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80").rating(new BigDecimal("4.7")).reviewCount(167).isFeatured(true).soldCount(520).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m2).category(homeLiving).name("Abstract Wall Art Canvas").slug("abstract-wall-art-canvas").description("Modern abstract canvas art print. 24x36 inches, ready to hang with wooden frame.").price(new BigDecimal("0.02")).stockQuantity(15).images("https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&q=80").rating(new BigDecimal("4.5")).reviewCount(62).isFeatured(false).soldCount(134).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
-        products.add(Product.builder().merchant(m2).category(sportsFitness).name("Resistance Bands Set").slug("resistance-bands-set").description("5-piece resistance band set with varying resistance levels. Includes door anchor and carrying case.").price(new BigDecimal("0.02")).comparePrice(new BigDecimal("0.03")).stockQuantity(50).images("https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80").rating(new BigDecimal("4.6")).reviewCount(89).isFeatured(false).soldCount(278).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m1).category(electronics).name("Portable Power Bank").slug("portable-power-bank").description("20000mAh capacity with fast charging support. Charge multiple devices simultaneously.").price(new BigDecimal("0.01")).comparePrice(new BigDecimal("0.02")).stockQuantity(100).images(nextImage()).rating(new BigDecimal("4.4")).reviewCount(312).isFeatured(false).soldCount(1450).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m2).category(homeLiving).name("Ceramic Coffee Mug Set").slug("ceramic-coffee-mug-set").description("Handcrafted ceramic mugs. Set of 4 in earthy tones. Microwave and dishwasher safe.").price(new BigDecimal("0.01")).stockQuantity(30).images(nextImage()).rating(new BigDecimal("4.8")).reviewCount(156).isFeatured(false).soldCount(670).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m2).category(sportsFitness).name("Yoga Mat Premium").slug("yoga-mat-premium").description("Extra thick 6mm cushioning with non-slip surface. Perfect for yoga, pilates, and workouts.").price(new BigDecimal("0.01")).comparePrice(new BigDecimal("0.02")).stockQuantity(40).images(nextImage()).rating(new BigDecimal("4.6")).reviewCount(89).isFeatured(false).soldCount(340).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m1).category(electronics).name("Wireless Gaming Mouse").slug("wireless-gaming-mouse").description("Ultra-responsive with customizable RGB lighting. 16000 DPI sensor for precision.").price(new BigDecimal("0.01")).comparePrice(new BigDecimal("0.02")).stockQuantity(45).images(nextImage()).rating(new BigDecimal("4.7")).reviewCount(234).isFeatured(true).soldCount(560).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m2).category(clothing).name("Denim Jacket Classic").slug("denim-jacket-classic").description("Timeless denim jacket with a modern fit. Premium quality cotton denim.").price(new BigDecimal("0.01")).stockQuantity(20).images(nextImage()).rating(new BigDecimal("4.8")).reviewCount(98).isFeatured(true).soldCount(280).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m1).category(electronics).name("Bluetooth Portable Speaker").slug("bluetooth-portable-speaker").description("Waterproof wireless speaker with 360° sound and 12-hour battery life. Perfect for outdoor adventures.").price(new BigDecimal("0.02")).comparePrice(new BigDecimal("0.03")).stockQuantity(30).images(nextImage()).rating(new BigDecimal("4.5")).reviewCount(178).isFeatured(true).soldCount(420).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m2).category(accessories).name("Genuine Leather Wallet").slug("genuine-leather-wallet").description("Handcrafted genuine leather wallet with RFID protection and multiple card slots.").price(new BigDecimal("0.02")).stockQuantity(25).images(nextImage()).rating(new BigDecimal("4.7")).reviewCount(134).isFeatured(false).soldCount(290).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m2).category(clothing).name("Cotton Hoodie Premium").slug("cotton-hoodie-premium").description("Ultra-soft 100% cotton hoodie with kangaroo pocket and ribbed cuffs. Perfect for casual wear.").price(new BigDecimal("0.02")).comparePrice(new BigDecimal("0.03")).stockQuantity(35).images(nextImage()).rating(new BigDecimal("4.6")).reviewCount(87).isFeatured(false).soldCount(380).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m2).category(homeLiving).name("Faux Fur Throw Blanket").slug("faux-fur-throw-blanket").description("Luxuriously soft faux fur throw blanket. Machine washable and perfect for cozy evenings.").price(new BigDecimal("0.02")).stockQuantity(18).images(nextImage()).rating(new BigDecimal("4.9")).reviewCount(76).isFeatured(false).soldCount(195).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m2).category(sportsFitness).name("Adjustable Dumbbells Set").slug("adjustable-dumbbells-set").description("5-50lb adjustable dumbbells with quick-change mechanism. Space-saving design for home workouts.").price(new BigDecimal("0.02")).comparePrice(new BigDecimal("0.03")).stockQuantity(12).images(nextImage()).rating(new BigDecimal("4.8")).reviewCount(145).isFeatured(true).soldCount(167).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m1).category(electronics).name("10-inch Android Tablet").slug("10-inch-android-tablet").description("High-performance tablet with 128GB storage, 8MP camera, and all-day battery life.").price(new BigDecimal("0.02")).comparePrice(new BigDecimal("0.03")).stockQuantity(22).images(nextImage()).rating(new BigDecimal("4.4")).reviewCount(98).isFeatured(false).soldCount(310).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m2).category(accessories).name("Laptop Backpack Professional").slug("laptop-backpack-professional").description("Water-resistant laptop backpack with dedicated compartments and ergonomic design.").price(new BigDecimal("0.02")).stockQuantity(28).images(nextImage()).rating(new BigDecimal("4.6")).reviewCount(203).isFeatured(true).soldCount(445).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m2).category(clothing).name("Running Sneakers Lightweight").slug("running-sneakers-lightweight").description("Breathable mesh running shoes with cushioning and responsive sole. Perfect for daily runs.").price(new BigDecimal("0.02")).comparePrice(new BigDecimal("0.03")).stockQuantity(40).images(nextImage()).rating(new BigDecimal("4.7")).reviewCount(167).isFeatured(true).soldCount(520).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m2).category(homeLiving).name("Abstract Wall Art Canvas").slug("abstract-wall-art-canvas").description("Modern abstract canvas art print. 24x36 inches, ready to hang with wooden frame.").price(new BigDecimal("0.02")).stockQuantity(15).images(nextImage()).rating(new BigDecimal("4.5")).reviewCount(62).isFeatured(false).soldCount(134).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
+        products.add(Product.builder().merchant(m2).category(sportsFitness).name("Resistance Bands Set").slug("resistance-bands-set").description("5-piece resistance band set with varying resistance levels. Includes door anchor and carrying case.").price(new BigDecimal("0.02")).comparePrice(new BigDecimal("0.03")).stockQuantity(50).images(nextImage()).rating(new BigDecimal("4.6")).reviewCount(89).isFeatured(false).soldCount(278).createdAt(Instant.now()).updatedAt(Instant.now()).isActive(true).build());
 
         productRepository.saveAll(products);
         System.out.println("✅ Created " + products.size() + " products");

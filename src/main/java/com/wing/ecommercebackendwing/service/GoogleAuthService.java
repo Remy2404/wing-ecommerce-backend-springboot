@@ -35,61 +35,102 @@ public class GoogleAuthService {
     private String googleClientId;
 
     @Transactional
-    public AuthResponse authenticateWithGoogle(String idTokenString) {
+    public AuthResponse authenticateWithGoogle(String token) {
         try {
-            // Verify Google ID token
-            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
-                    new NetHttpTransport(),
-                    GsonFactory.getDefaultInstance())
-                    .setAudience(Collections.singletonList(googleClientId))
-                    .build();
-
-            GoogleIdToken idToken = verifier.verify(idTokenString);
-            if (idToken == null) {
-                throw new RuntimeException("Invalid Google ID token");
+            // Detect token type: ID tokens have 3 parts (JWT), access tokens are opaque
+            String[] parts = token.split("\\.");
+            
+            if (parts.length == 3) {
+                // This looks like a JWT (ID token) - verify with Google
+                return authenticateWithIdToken(token);
+            } else {
+                // This is likely an access token - call userinfo API
+                return authenticateWithAccessToken(token);
             }
-
-            GoogleIdToken.Payload payload = idToken.getPayload();
-
-            // Extract user information
-            String googleId = payload.getSubject();
-            String email = payload.getEmail();
-            String name = (String) payload.get("name");
-            String pictureUrl = (String) payload.get("picture");
-            Boolean emailVerified = payload.getEmailVerified();
-
-            // Find or create user
-            User user = userRepository.findByGoogleId(googleId)
-                    .or(() -> userRepository.findByEmail(email))
-                    .orElseGet(() -> createGoogleUser(googleId, email, name, pictureUrl, emailVerified));
-
-            // Update existing user with Google ID if logging in via Google for first time
-            if (user.getGoogleId() == null) {
-                user.setGoogleId(googleId);
-                user.setAuthProvider(AuthProvider.GOOGLE);
-                if (emailVerified != null && emailVerified) {
-                    user.setEmailVerified(true);
-                }
-                userRepository.save(user);
-            }
-
-            // Generate JWT tokens
-            Authentication authentication = createAuthentication(user);
-            String accessToken = jwtTokenProvider.generateToken(authentication);
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
-
-            log.info("Google OAuth login successful for user: {}", email);
-
-            return AuthResponse.builder()
-                    .token(accessToken)
-                    .refreshToken(refreshToken.getToken())
-                    .user(buildUserSummary(user))
-                    .build();
-
         } catch (Exception e) {
             log.error("Google authentication failed: {}", e.getMessage(), e);
             throw new RuntimeException("Google authentication failed: " + e.getMessage());
         }
+    }
+
+    private AuthResponse authenticateWithIdToken(String idTokenString) throws Exception {
+        // Verify Google ID token
+        GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                new NetHttpTransport(),
+                GsonFactory.getDefaultInstance())
+                .setAudience(Collections.singletonList(googleClientId))
+                .build();
+
+        GoogleIdToken idToken = verifier.verify(idTokenString);
+        if (idToken == null) {
+            throw new RuntimeException("Invalid Google ID token");
+        }
+
+        GoogleIdToken.Payload payload = idToken.getPayload();
+
+        // Extract user information
+        String googleId = payload.getSubject();
+        String email = payload.getEmail();
+        String name = (String) payload.get("name");
+        String pictureUrl = (String) payload.get("picture");
+        Boolean emailVerified = payload.getEmailVerified();
+
+        return processGoogleUser(googleId, email, name, pictureUrl, emailVerified);
+    }
+
+    private AuthResponse authenticateWithAccessToken(String accessToken) throws Exception {
+        // Call Google's userinfo API with the access token
+        NetHttpTransport httpTransport = new NetHttpTransport();
+        com.google.api.client.http.HttpRequestFactory requestFactory = httpTransport.createRequestFactory();
+        
+        com.google.api.client.http.GenericUrl url = new com.google.api.client.http.GenericUrl("https://www.googleapis.com/oauth2/v3/userinfo");
+        com.google.api.client.http.HttpRequest request = requestFactory.buildGetRequest(url);
+        request.getHeaders().setAuthorization("Bearer " + accessToken);
+        
+        com.google.api.client.http.HttpResponse response = request.execute();
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> json = GsonFactory.getDefaultInstance().fromInputStream(response.getContent(), java.util.Map.class);
+        
+        String googleId = (String) json.get("sub");
+        String email = (String) json.get("email");
+        String name = (String) json.get("name");
+        String pictureUrl = (String) json.get("picture");
+        Boolean emailVerified = (Boolean) json.get("email_verified");
+        
+        if (googleId == null || email == null) {
+            throw new RuntimeException("Failed to get user info from Google");
+        }
+
+        return processGoogleUser(googleId, email, name, pictureUrl, emailVerified);
+    }
+
+    private AuthResponse processGoogleUser(String googleId, String email, String name, String pictureUrl, Boolean emailVerified) {
+        // Find or create user
+        User user = userRepository.findByGoogleId(googleId)
+                .or(() -> userRepository.findByEmail(email))
+                .orElseGet(() -> createGoogleUser(googleId, email, name, pictureUrl, emailVerified));
+
+        // Update existing user with Google ID if logging in via Google for first time
+        if (user.getGoogleId() == null) {
+            user.setGoogleId(googleId);
+            user.setAuthProvider(AuthProvider.GOOGLE);
+            if (emailVerified != null && emailVerified) {
+                user.setEmailVerified(true);
+            }
+            userRepository.save(user);
+        }
+
+        // Generate JWT tokens
+        String accessToken = jwtTokenProvider.generateToken(user);
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
+
+        log.info("Google OAuth login successful for user: {}", email);
+
+        return AuthResponse.builder()
+                .token(accessToken)
+                .refreshToken(refreshToken.getToken())
+                .user(buildUserSummary(user))
+                .build();
     }
 
     private User createGoogleUser(String googleId, String email, String name, String pictureUrl, Boolean emailVerified) {
@@ -131,6 +172,7 @@ public class GoogleAuthService {
                 .email(user.getEmail())
                 .name(user.getFirstName() + " " + user.getLastName())
                 .role(user.getRole().name())
+                .avatar(user.getAvatar())
                 .build();
     }
 }
