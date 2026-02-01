@@ -23,6 +23,15 @@ public class User {
     @Column(unique = true)
     private String phone;
 
+    // OAuth Support
+    @Column(name = "google_id", unique = true)
+    private String googleId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", nullable = false)
+    private com.wing.ecommercebackendwing.model.enums.AuthProvider authProvider = com.wing.ecommercebackendwing.model.enums.AuthProvider.LOCAL;
+
+    // Nullable for OAuth users (GOOGLE provider)
     private String password;
 
     @Column(nullable = false)

@@ -52,6 +52,7 @@ public class EnhancedAuthService {
         // Create user
         User user = UserMapper.toEntity(request);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setAuthProvider(com.wing.ecommercebackendwing.model.enums.AuthProvider.LOCAL);
         user.setEmailVerified(false);
         user.setEmailVerificationToken(UUID.randomUUID().toString());
         user.setEmailVerificationSentAt(Instant.now());
