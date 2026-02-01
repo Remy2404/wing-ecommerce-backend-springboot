@@ -42,6 +42,29 @@ public class CartMapper {
                 .quantity(cartItem.getQuantity())
                 .price(cartItem.getPrice())
                 .subtotal(subtotal)
+                .productSlug(cartItem.getProduct().getSlug())
+                .productImage(extractFirstImage(cartItem.getProduct().getImages()))
                 .build();
+    }
+
+    private static String extractFirstImage(String imagesJson) {
+        if (imagesJson == null || imagesJson.isBlank()) {
+            return null;
+        }
+        try {
+            String clean = imagesJson.trim();
+            if (clean.startsWith("[\"") && clean.endsWith("\"]")) {
+                int endIndex = clean.indexOf("\",");
+                if (endIndex == -1) {
+                    endIndex = clean.lastIndexOf("\"]");
+                }
+                return clean.substring(2, endIndex);
+            } else if (clean.startsWith("[") && clean.endsWith("]")) {
+                 return null;
+            }
+            return clean; 
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

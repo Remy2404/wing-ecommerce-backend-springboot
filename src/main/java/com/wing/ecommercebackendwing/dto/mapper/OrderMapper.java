@@ -23,6 +23,11 @@ public class OrderMapper {
                 .orderNumber(order.getOrderNumber())
                 .status(order.getStatus().name())
                 .total(order.getTotal())
+                .subtotal(order.getSubtotal())
+                .deliveryFee(order.getDeliveryFee())
+                .discount(order.getDiscount())
+                .tax(order.getTax())
+                .paymentStatus(order.getPayment() != null ? order.getPayment().getStatus().name() : "PENDING")
                 .items(itemResponses)
                 .createdAt(order.getCreatedAt())
                 .build();
@@ -49,6 +54,29 @@ public class OrderMapper {
                 .quantity(orderItem.getQuantity())
                 .price(orderItem.getUnitPrice())
                 .subtotal(subtotal)
+                .productSlug(orderItem.getProduct().getSlug())
+                .productImage(extractFirstImage(orderItem.getProduct().getImages()))
                 .build();
+    }
+
+    private static String extractFirstImage(String imagesJson) {
+        if (imagesJson == null || imagesJson.isBlank()) {
+            return null;
+        }
+        try {
+            String clean = imagesJson.trim();
+            if (clean.startsWith("[\"") && clean.endsWith("\"]")) {
+                int endIndex = clean.indexOf("\",");
+                if (endIndex == -1) {
+                    endIndex = clean.lastIndexOf("\"]");
+                }
+                return clean.substring(2, endIndex);
+            } else if (clean.startsWith("[") && clean.endsWith("]")) {
+                 return null;
+            }
+            return clean;
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

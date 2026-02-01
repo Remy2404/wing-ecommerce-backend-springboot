@@ -15,6 +15,11 @@ public class OrderResponse {
     private String orderNumber;
     private String status;
     private BigDecimal total;
+    private BigDecimal subtotal;
+    private BigDecimal deliveryFee;
+    private BigDecimal discount;
+    private BigDecimal tax;
+    private String paymentStatus;
     private List<OrderItemResponse> items;
     private Instant createdAt;
 }
