@@ -44,7 +44,7 @@ public class PaymentServiceTest {
 
     private final String md5 = "aaad6ba89e1045b3ba46fa8542555882";
     private final String bakongTransactionId = "60241686f7708a4a520a778844556677"; // 32 chars
-    private final UUID expectedUuid = UUID.fromString("60241686-f770-8a4a-520a-778844556677");
+    private final String expectedTransactionId = "60241686f7708a4a520a778844556677";
 
     @BeforeEach
     void setUp() {
@@ -79,12 +79,12 @@ public class PaymentServiceTest {
         // Assert
         assertTrue(result.startsWith("SUCCESS"));
         assertEquals(PaymentStatus.COMPLETED, payment.getStatus());
-        assertEquals(expectedUuid, payment.getTransactionId());
+        assertEquals(expectedTransactionId, payment.getTransactionId());
         verify(paymentRepository).save(payment);
     }
 
     @Test
-    void verifyPaymentByMd5_ShouldHandleInvalidTransactionIdGracefully() {
+    void verifyPaymentByMd5_ShouldSaveTransactionIdAsString() {
         // Arrange
         Payment payment = new Payment();
         payment.setMd5(md5);
@@ -97,7 +97,7 @@ public class PaymentServiceTest {
         responseBody.put("responseMessage", "Success");
         
         Map<String, Object> data = new HashMap<>();
-        data.put("transactionId", "invalid-id");
+        data.put("transactionId", "any-string-id");
         responseBody.put("data", data);
         
         ResponseEntity<Map<String, Object>> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
@@ -110,7 +110,7 @@ public class PaymentServiceTest {
 
         // Assert
         assertTrue(result.startsWith("SUCCESS"));
-        assertNull(payment.getTransactionId()); // Should be null due to invalid format
+        assertEquals("any-string-id", payment.getTransactionId());
         verify(paymentRepository).save(payment);
     }
 }

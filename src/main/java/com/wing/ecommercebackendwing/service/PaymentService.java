@@ -151,12 +151,7 @@ public class PaymentService {
                         Map<?, ?> data = (Map<?, ?>) dataObj;
                         Object resTransactionId = data.get("transactionId");
                         if (resTransactionId != null) {
-                            String compactId = String.valueOf(resTransactionId);
-                            try {
-                                payment.setTransactionId(parseCompactUuid(compactId));
-                            } catch (Exception e) {
-                                log.warn("Failed to parse transactionId from Bakong response: {}", compactId);
-                            }
+                            payment.setTransactionId(String.valueOf(resTransactionId));
                         }
                     }
 
@@ -192,16 +187,4 @@ public class PaymentService {
         return verifyPaymentByMd5(transactionId.trim());
     }
 
-    private UUID parseCompactUuid(String compactUuid) {
-        if (compactUuid == null || compactUuid.trim().length() != 32) {
-            return null;
-        }
-        String cleanUuid = compactUuid.trim();
-        String uuidString = cleanUuid.substring(0, 8) + "-" +
-                cleanUuid.substring(8, 12) + "-" +
-                cleanUuid.substring(12, 16) + "-" +
-                cleanUuid.substring(16, 20) + "-" +
-                cleanUuid.substring(20, 32);
-        return UUID.fromString(uuidString);
-    }
 }

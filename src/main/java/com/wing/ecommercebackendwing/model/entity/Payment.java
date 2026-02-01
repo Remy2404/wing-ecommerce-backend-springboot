@@ -26,7 +26,7 @@ public class Payment {
     private String md5;
 
     @Column(name = "transaction_id")
-    private UUID transactionId;
+    private String transactionId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
