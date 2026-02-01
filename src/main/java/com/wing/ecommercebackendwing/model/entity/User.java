@@ -28,7 +28,7 @@ public class User {
     private String googleId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "auth_provider", nullable = false)
+    @Column(name = "auth_provider", nullable = false, columnDefinition = "varchar(255) default 'LOCAL'")
     private com.wing.ecommercebackendwing.model.enums.AuthProvider authProvider = com.wing.ecommercebackendwing.model.enums.AuthProvider.LOCAL;
 
     // Nullable for OAuth users (GOOGLE provider)
