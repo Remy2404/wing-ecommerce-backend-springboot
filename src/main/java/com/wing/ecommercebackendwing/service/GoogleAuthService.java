@@ -11,17 +11,18 @@ import com.wing.ecommercebackendwing.model.enums.AuthProvider;
 import com.wing.ecommercebackendwing.model.enums.UserRole;
 import com.wing.ecommercebackendwing.repository.UserRepository;
 import com.wing.ecommercebackendwing.security.jwt.JwtTokenProvider;
+import com.wing.ecommercebackendwing.exception.custom.UnauthorizedException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.security.core.authority.AuthorityUtils;
-
 import java.time.Instant;
 import java.util.Collections;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -38,24 +39,30 @@ public class GoogleAuthService {
     @Transactional
     public AuthResponse authenticateWithGoogle(String token) {
         try {
-            // Detect token type: ID tokens have 3 parts (JWT), access tokens are opaque
-            String[] parts = token.split("\\.");
-            
-            if (parts.length == 3) {
-                // This looks like a JWT (ID token) - verify with Google
+            // Try ID token first
+            try {
                 return authenticateWithIdToken(token);
-            } else {
-                // This is likely an access token - call userinfo API
+            } catch (IllegalArgumentException e) {
+                // Not a JWT, try as access token
                 return authenticateWithAccessToken(token);
+            } catch (Exception e) {
+                log.error("ID token verification failed: {}", e.getMessage());
+                // Fallback to access token if it wasn't a JWT error but a verification error
+                // In a stricter setup, we might want to fail here if it looks like a JWT
+                if (token.split("\\.").length != 3) {
+                    return authenticateWithAccessToken(token);
+                }
+                throw new UnauthorizedException("Invalid Google authentication");
             }
+        } catch (UnauthorizedException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("Google authentication failed: {}", e.getMessage(), e);
-            throw new RuntimeException("Google authentication failed: " + e.getMessage());
+            log.error("Google authentication failed: ", e);
+            throw new UnauthorizedException("Authentication failed");
         }
     }
 
     private AuthResponse authenticateWithIdToken(String idTokenString) throws Exception {
-        // Verify Google ID token
         GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
                 new NetHttpTransport(),
                 GsonFactory.getDefaultInstance())
@@ -64,60 +71,93 @@ public class GoogleAuthService {
 
         GoogleIdToken idToken = verifier.verify(idTokenString);
         if (idToken == null) {
-            throw new RuntimeException("Invalid Google ID token");
+            throw new UnauthorizedException("Invalid ID token");
         }
 
         GoogleIdToken.Payload payload = idToken.getPayload();
 
-        // Extract user information
+        Boolean emailVerified = payload.getEmailVerified();
+        if (emailVerified == null || !emailVerified) {
+            throw new UnauthorizedException("Google account email is not verified");
+        }
+
         String googleId = payload.getSubject();
         String email = payload.getEmail();
         String name = (String) payload.get("name");
         String pictureUrl = (String) payload.get("picture");
-        Boolean emailVerified = payload.getEmailVerified();
 
         return processGoogleUser(googleId, email, name, pictureUrl, emailVerified);
     }
 
     private AuthResponse authenticateWithAccessToken(String accessToken) throws Exception {
-        // Call Google's userinfo API with the access token
+        // 1. Verify access token with tokeninfo endpoint
         NetHttpTransport httpTransport = new NetHttpTransport();
         com.google.api.client.http.HttpRequestFactory requestFactory = httpTransport.createRequestFactory();
         
-        com.google.api.client.http.GenericUrl url = new com.google.api.client.http.GenericUrl("https://www.googleapis.com/oauth2/v3/userinfo");
-        com.google.api.client.http.HttpRequest request = requestFactory.buildGetRequest(url);
-        request.getHeaders().setAuthorization("Bearer " + accessToken);
+        com.google.api.client.http.GenericUrl tokenInfoUrl = new com.google.api.client.http.GenericUrl("https://oauth2.googleapis.com/tokeninfo?access_token=" + accessToken);
+        com.google.api.client.http.HttpRequest tokenInfoRequest = requestFactory.buildGetRequest(tokenInfoUrl);
         
-        com.google.api.client.http.HttpResponse response = request.execute();
+        com.google.api.client.http.HttpResponse tokenInfoResponse = tokenInfoRequest.execute();
         @SuppressWarnings("unchecked")
-        java.util.Map<String, Object> json = GsonFactory.getDefaultInstance().fromInputStream(response.getContent(), java.util.Map.class);
+        Map<String, Object> tokenInfo = GsonFactory.getDefaultInstance().fromInputStream(tokenInfoResponse.getContent(), Map.class);
         
-        String googleId = (String) json.get("sub");
-        String email = (String) json.get("email");
-        String name = (String) json.get("name");
-        String pictureUrl = (String) json.get("picture");
-        Boolean emailVerified = (Boolean) json.get("email_verified");
+        // Validate azp (Authorized Party) should match our client ID
+        String azp = (String) tokenInfo.get("azp");
+        if (azp == null || !azp.equals(googleClientId)) {
+            log.warn("Access token azp mismatch: expected {}, got {}", googleClientId, azp);
+            throw new UnauthorizedException("Invalid token source");
+        }
+
+        // 2. Get user info
+        com.google.api.client.http.GenericUrl userInfoUrl = new com.google.api.client.http.GenericUrl("https://www.googleapis.com/oauth2/v3/userinfo");
+        com.google.api.client.http.HttpRequest userInfoRequest = requestFactory.buildGetRequest(userInfoUrl);
+        userInfoRequest.getHeaders().setAuthorization("Bearer " + accessToken);
+        
+        com.google.api.client.http.HttpResponse userInfoResponse = userInfoRequest.execute();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> userInfo = GsonFactory.getDefaultInstance().fromInputStream(userInfoResponse.getContent(), Map.class);
+        
+        String googleId = (String) userInfo.get("sub");
+        String email = (String) userInfo.get("email");
+        String name = (String) userInfo.get("name");
+        String pictureUrl = (String) userInfo.get("picture");
+        Boolean emailVerified = (Boolean) userInfo.get("email_verified");
         
         if (googleId == null || email == null) {
-            throw new RuntimeException("Failed to get user info from Google");
+            throw new UnauthorizedException("Failed to get user info from Google");
+        }
+
+        if (emailVerified == null || !emailVerified) {
+            throw new UnauthorizedException("Google account email is not verified");
         }
 
         return processGoogleUser(googleId, email, name, pictureUrl, emailVerified);
     }
 
     private AuthResponse processGoogleUser(String googleId, String email, String name, String pictureUrl, Boolean emailVerified) {
-        // Find or create user
+        if (emailVerified == null || !emailVerified) {
+            throw new UnauthorizedException("Google account email is not verified");
+        }
         User user = userRepository.findByGoogleId(googleId)
-                .or(() -> userRepository.findByEmail(email))
-                .orElseGet(() -> createGoogleUser(googleId, email, name, pictureUrl, emailVerified));
+                .orElseGet(() -> {
+                    // Try to find by email
+                    User existingUser = userRepository.findByEmail(email).orElse(null);
+                    if (existingUser != null) {
+                        if (existingUser.getEmailVerified()) {
+                            log.warn("Account takeover attempt blocked for email: {}", email);
+                            throw new UnauthorizedException("This email is already registered. Please login with your password.");
+                        }
+                        return existingUser;
+                    }
+                    // Create new user if not found
+                    return createGoogleUser(googleId, email, name, pictureUrl, emailVerified);
+                });
 
-        // Update existing user with Google ID if logging in via Google for first time
+        // Link Google ID if not already linked (for existing unverified users)
         if (user.getGoogleId() == null) {
             user.setGoogleId(googleId);
             user.setAuthProvider(AuthProvider.GOOGLE);
-            if (emailVerified != null && emailVerified) {
-                user.setEmailVerified(true);
-            }
+            user.setEmailVerified(emailVerified);
             userRepository.save(user);
         }
 
@@ -134,12 +174,15 @@ public class GoogleAuthService {
                 .build();
     }
 
-    private User createGoogleUser(String googleId, String email, String name, String pictureUrl, Boolean emailVerified) {
+    private User createGoogleUser(String googleId, String email, String name, String pictureUrl, boolean emailVerified) {
+        if (!emailVerified) {
+            throw new IllegalArgumentException("Cannot create a user with an unverified email");
+        }
         User user = new User();
         user.setGoogleId(googleId);
         user.setEmail(email);
         user.setAuthProvider(AuthProvider.GOOGLE);
-        user.setEmailVerified(emailVerified != null && emailVerified);
+        user.setEmailVerified(emailVerified);
         user.setAvatar(pictureUrl);
         user.setRole(UserRole.CUSTOMER);
         user.setIsActive(true);
