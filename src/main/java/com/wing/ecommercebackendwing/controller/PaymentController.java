@@ -1,7 +1,8 @@
 package com.wing.ecommercebackendwing.controller;
 
 import com.wing.ecommercebackendwing.dto.response.common.ApiResponse;
-import com.wing.ecommercebackendwing.dto.response.payment.KHQRResponse;
+import com.wing.ecommercebackendwing.dto.response.payment.KHQRResultDto;
+import com.wing.ecommercebackendwing.dto.response.payment.PaymentVerificationResponse;
 import com.wing.ecommercebackendwing.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -26,25 +27,31 @@ public class PaymentController {
     @PostMapping("/khqr/{orderId}")
     @Operation(summary = "Generate KHQR for an order")
     @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "Bearer Authentication")
-    public ResponseEntity<KHQRResponse> generateKHQR(
+    public ResponseEntity<ApiResponse<KHQRResultDto>> generateKHQR(
             @Parameter(description = "Order ID", required = true)
             @PathVariable(name = "orderId") UUID orderId) {
-        KHQRResponse response = paymentService.generateKHQR(orderId);
-        return ResponseEntity.ok(response);
+        
+        KHQRResultDto result = paymentService.generateKHQR(orderId);
+        
+        return ResponseEntity.ok(ApiResponse.<KHQRResultDto>builder()
+                .success(true)
+                .message("KHQR generated successfully")
+                .data(result)
+                .build());
     }
 
     @PostMapping("/verify/md5/{md5}")
-    @Operation(summary = "Verify payment by MD5")
-    public ResponseEntity<ApiResponse<String>> verifyPaymentByMd5(
-            @Parameter(description = "32 chars MD5 hash", required = true)
+    @Operation(summary = "Check transaction status with Bakong")
+    public ResponseEntity<ApiResponse<PaymentVerificationResponse>> verifyPaymentByMd5(
+            @Parameter(description = "MD5 hash from KHQR generation", required = true)
             @PathVariable(name = "md5") @NotBlank String md5) {
-        String verificationResult = paymentService.verifyPaymentByMd5(md5);
+
+        PaymentVerificationResponse status = paymentService.verifyPaymentByMd5(md5);
         
-        boolean isSuccess = verificationResult.startsWith("SUCCESS");
-        
-        return ResponseEntity.ok(ApiResponse.<String>builder()
-                .success(isSuccess)
-                .message(verificationResult)
+        return ResponseEntity.ok(ApiResponse.<PaymentVerificationResponse>builder()
+                .success(status.isPaid())
+                .message(status.getMessage())
+                .data(status)
                 .build());
     }
 }

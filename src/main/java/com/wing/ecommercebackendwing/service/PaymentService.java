@@ -1,7 +1,8 @@
 package com.wing.ecommercebackendwing.service;
 
 import com.wing.ecommercebackendwing.config.BakongConfig;
-import com.wing.ecommercebackendwing.dto.response.payment.KHQRResponse;
+import com.wing.ecommercebackendwing.dto.response.payment.KHQRResultDto;
+import com.wing.ecommercebackendwing.dto.response.payment.PaymentVerificationResponse;
 import com.wing.ecommercebackendwing.model.entity.Order;
 import com.wing.ecommercebackendwing.model.entity.Payment;
 import com.wing.ecommercebackendwing.model.enums.OrderStatus;
@@ -40,7 +41,7 @@ public class PaymentService {
     private String bakongApiToken;
 
     @Transactional
-    public KHQRResponse generateKHQR(UUID orderId) {
+    public KHQRResultDto generateKHQR(UUID orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
@@ -87,17 +88,15 @@ public class PaymentService {
 
         log.info("Generated KHQR for order {} with MD5 {}", order.getOrderNumber(), md5);
 
-        return KHQRResponse.builder()
-                .qrData(qrData)
+        return KHQRResultDto.builder()
+                .qrString(qrData)
                 .md5(md5)
-                .orderNumber(order.getOrderNumber())
-                .amount(order.getTotalAmount().toString())
                 .build();
     }
 
 
     @Transactional
-    public String verifyPaymentByMd5(String md5) {
+    public PaymentVerificationResponse verifyPaymentByMd5(String md5) {
         // Normalize MD5 to lowercase as some SDKs/APIs might vary in casing
         String normalizedMd5 = md5.trim().toLowerCase();
         
@@ -106,11 +105,19 @@ public class PaymentService {
 
         if (payment == null) {
             log.warn("Payment record not found for MD5: {}", normalizedMd5);
-            return "ERROR: Payment record not found for MD5 " + normalizedMd5;
+            return PaymentVerificationResponse.builder()
+                    .isPaid(false)
+                    .message("Payment record not found")
+                    .build();
         }
 
         if (payment.getStatus() == PaymentStatus.COMPLETED) {
-            return "SUCCESS: Payment already completed";
+            return PaymentVerificationResponse.builder()
+                    .isPaid(true)
+                    .paidAmount(payment.getAmount().doubleValue())
+                    .currency("USD")
+                    .message("Payment already completed")
+                    .build();
         }
 
         String baseUrl = bakongConfig.getApiBaseUrl();
@@ -130,7 +137,7 @@ public class PaymentService {
     }
 
 
-    private String executeVerificationRequest(String url, HttpEntity<Map<String, String>> entity, String transactionId, Payment payment) {
+    private PaymentVerificationResponse executeVerificationRequest(String url, HttpEntity<Map<String, String>> entity, String transactionId, Payment payment) {
         try {
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                     url, HttpMethod.POST, entity, new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
@@ -140,21 +147,33 @@ public class PaymentService {
                 Object responseCodeObj = responseBody.get("responseCode");
                 Object responseMessageObj = responseBody.get("responseMessage");
                 
+                // responseCode 0 is success
                 if (responseCodeObj != null && "0".equals(String.valueOf(responseCodeObj))) {
-                    payment.setStatus(PaymentStatus.COMPLETED);
-                    payment.setPaidAt(Instant.now());
-                    payment.setGatewayResponse(responseBody.toString());
-
-                    // Extract transactionId from data object if available
                     Object dataObj = responseBody.get("data");
+                    Double amount = 0.0;
+                    String currency = "USD";
+                    
                     if (dataObj instanceof Map) {
                         Map<?, ?> data = (Map<?, ?>) dataObj;
                         Object resTransactionId = data.get("transactionId");
                         if (resTransactionId != null) {
                             payment.setTransactionId(String.valueOf(resTransactionId));
                         }
+                        
+                        Object amountObj = data.get("amount");
+                        if (amountObj != null) {
+                            amount = Double.valueOf(String.valueOf(amountObj));
+                        }
+                        
+                        Object currencyObj = data.get("currency");
+                        if (currencyObj != null) {
+                            currency = String.valueOf(currencyObj);
+                        }
                     }
 
+                    payment.setStatus(PaymentStatus.COMPLETED);
+                    payment.setPaidAt(Instant.now());
+                    payment.setGatewayResponse(responseBody.toString());
                     paymentRepository.save(payment);
 
                     Order order = payment.getOrder();
@@ -163,28 +182,47 @@ public class PaymentService {
                     orderRepository.save(order);
 
                     log.info("Payment verified successfully for transaction {}", transactionId);
-                    return "SUCCESS: " + responseMessageObj;
+                    
+                    return PaymentVerificationResponse.builder()
+                            .isPaid(true)
+                            .paidAmount(amount)
+                            .currency(currency)
+                            .message("Success")
+                            .build();
                 } else {
-                    String errorMsg = responseMessageObj != null ? responseMessageObj.toString() : "Unknown error";
-                    log.warn("Payment verification failed for transaction {}: {}", transactionId, errorMsg);
-                    return "PENDING: " + errorMsg;
+                    String errorMsg = responseMessageObj != null ? responseMessageObj.toString() : "Transaction pending or not found";
+                    log.debug("Payment verification pending for transaction {}: {}", transactionId, errorMsg);
+                    return PaymentVerificationResponse.builder()
+                            .isPaid(false)
+                            .message(errorMsg)
+                            .build();
                 }
             } else {
-                return "ERROR: Bakong API returned status " + response.getStatusCode();
+                return PaymentVerificationResponse.builder()
+                        .isPaid(false)
+                        .message("API Error: " + response.getStatusCode())
+                        .build();
             }
         } catch (Exception e) {
             log.error("Error verifying payment for transaction {}: {}", transactionId, e.getMessage());
-            return "ERROR: " + e.getMessage();
+            return PaymentVerificationResponse.builder()
+                    .isPaid(false)
+                    .message("Error: " + e.getMessage())
+                    .build();
         }
     }
 
     @Transactional
-    public String verifyPayment(String transactionId) {
+    public PaymentVerificationResponse verifyPayment(String transactionId) {
         if (transactionId == null) {
-            return "ERROR: Transaction ID is null";
+            return PaymentVerificationResponse.builder()
+                    .isPaid(false)
+                    .message("Transaction ID is null")
+                    .build();
         }
         
         return verifyPaymentByMd5(transactionId.trim());
     }
+
 
 }

@@ -1,6 +1,7 @@
 package com.wing.ecommercebackendwing.service;
 
 import com.wing.ecommercebackendwing.config.BakongConfig;
+import com.wing.ecommercebackendwing.dto.response.payment.PaymentVerificationResponse;
 import com.wing.ecommercebackendwing.model.entity.Order;
 import com.wing.ecommercebackendwing.model.entity.Payment;
 import com.wing.ecommercebackendwing.model.enums.PaymentStatus;
@@ -73,10 +74,11 @@ public class PaymentServiceTest {
                 .thenReturn(responseEntity);
 
         // Act
-        String result = paymentService.verifyPaymentByMd5(md5);
+        PaymentVerificationResponse result = paymentService.verifyPaymentByMd5(md5);
 
         // Assert
-        assertTrue(result.startsWith("SUCCESS"));
+        assertTrue(result.isPaid());
+        assertEquals("Success", result.getMessage());
         assertEquals(PaymentStatus.COMPLETED, payment.getStatus());
         assertEquals(expectedTransactionId, payment.getTransactionId());
         verify(paymentRepository).save(payment);
@@ -106,10 +108,10 @@ public class PaymentServiceTest {
                 .thenReturn((ResponseEntity) responseEntity);
 
         // Act
-        String result = paymentService.verifyPaymentByMd5(md5);
+        PaymentVerificationResponse result = paymentService.verifyPaymentByMd5(md5);
 
         // Assert
-        assertTrue(result.startsWith("SUCCESS"));
+        assertTrue(result.isPaid());
         assertEquals("any-string-id", payment.getTransactionId());
         verify(paymentRepository).save(payment);
     }
