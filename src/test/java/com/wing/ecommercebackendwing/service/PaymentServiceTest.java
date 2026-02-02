@@ -21,7 +21,6 @@ import org.springframework.web.client.RestTemplate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -71,7 +70,7 @@ public class PaymentServiceTest {
         ResponseEntity<Map<String, Object>> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
         
         when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(org.springframework.core.ParameterizedTypeReference.class)))
-                .thenReturn((ResponseEntity) responseEntity);
+                .thenReturn(responseEntity);
 
         // Act
         String result = paymentService.verifyPaymentByMd5(md5);
@@ -83,6 +82,7 @@ public class PaymentServiceTest {
         verify(paymentRepository).save(payment);
     }
 
+    @SuppressWarnings("rawtypes")
     @Test
     void verifyPaymentByMd5_ShouldSaveTransactionIdAsString() {
         // Arrange

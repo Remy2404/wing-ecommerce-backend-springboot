@@ -24,20 +24,6 @@ public class DatabaseSeeder implements CommandLineRunner {
     private final MerchantRepository merchantRepository;
     private final ProductRepository productRepository;
     private final ReviewRepository reviewRepository;
-    private final ProductVariantRepository productVariantRepository;
-    private final CartItemRepository cartItemRepository;
-    private final CartRepository cartRepository;
-    private final OrderItemRepository orderItemRepository;
-    private final OrderRepository orderRepository;
-    private final PaymentRepository paymentRepository;
-    private final DeliveryRepository deliveryRepository;
-    private final NotificationRepository notificationRepository;
-    private final WishlistRepository wishlistRepository;
-    private final WingPointsRepository wingPointsRepository;
-    private final WingPointsTransactionRepository wingPointsTransactionRepository;
-    private final PromotionRepository promotionRepository;
-    private final PromotionUsageRepository promotionUsageRepository;
-    private final AddressRepository addressRepository;
     private final PasswordEncoder passwordEncoder;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 

@@ -18,6 +18,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.authority.AuthorityUtils;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -158,11 +159,12 @@ public class GoogleAuthService {
         return userRepository.save(user);
     }
 
+    @SuppressWarnings("unused")
     private Authentication createAuthentication(User user) {
         return new UsernamePasswordAuthenticationToken(
                 user.getEmail(),
                 null,
-                org.springframework.security.core.authority.AuthorityUtils.createAuthorityList("ROLE_" + user.getRole().name())
+                AuthorityUtils.createAuthorityList("ROLE_" + user.getRole().name())
         );
     }
 
