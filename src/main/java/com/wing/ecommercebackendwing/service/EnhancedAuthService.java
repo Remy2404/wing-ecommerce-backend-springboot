@@ -212,7 +212,34 @@ public class EnhancedAuthService {
         user.setPasswordResetTokenExpiry(null);
         userRepository.save(user);
 
-        log.info("Password reset completed for user: {}", user.getEmail());
+        // Security: Revoke all refresh tokens after password reset
+        refreshTokenService.revokeAllUserTokens(user.getId());
+
+        log.info("Password reset completed and all sessions revoked for user: {}", user.getEmail());
+    }
+
+    @Transactional
+    public void changePassword(UUID userId, String oldPassword, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            throw new RuntimeException("Invalid current password");
+        }
+
+        // Validate new password strength
+        PasswordValidator.ValidationResult validation = PasswordValidator.validate(newPassword);
+        if (!validation.isValid()) {
+            throw new RuntimeException(validation.getMessage());
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        // Security: Revoke all refresh tokens
+        refreshTokenService.revokeAllUserTokens(userId);
+
+        log.info("Password changed and all sessions revoked for user: {}", user.getEmail());
     }
 
     @Transactional

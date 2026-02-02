@@ -40,10 +40,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 
                 String jti = tokenProvider.getJtiFromToken(jwt);
-                if (jti != null && !jti.isBlank() && tokenBlacklistService.isBlacklisted(jti)) {
-                    log.debug("Rejected blacklisted token: {}", jti);
-                    filterChain.doFilter(request, response);
-                    return;
+                if (jti != null && !jti.isBlank()) {
+                    // Security: Blacklist check is a secondary, best-effort layer for explicit revocations.
+                    // This check is non-blocking to core functionality in case of cache loss.
+                    if (tokenBlacklistService.isBlacklisted(jti)) {
+                        log.debug("Rejected blacklisted token: {}", jti);
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
                 }
 
                 String username = tokenProvider.getUsernameFromToken(jwt);

@@ -20,6 +20,7 @@ public class AdminService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final OrderService orderService;
+    private final RefreshTokenService refreshTokenService;
 
     public Map<String, Object> getDashboardStats() {
         Map<String, Object> stats = new HashMap<>();
@@ -33,5 +34,16 @@ public class AdminService {
 
     public Page<OrderResponse> getAllOrders(int page, int size) {
         return orderService.getAllOrders(page, size);
+    }
+
+    public void revokeUser(java.util.UUID userId) {
+        com.wing.ecommercebackendwing.model.entity.User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        user.setIsActive(false);
+        userRepository.save(user);
+        
+        // Security: Revoke all refresh tokens
+        refreshTokenService.revokeAllUserTokens(userId);
     }
 }

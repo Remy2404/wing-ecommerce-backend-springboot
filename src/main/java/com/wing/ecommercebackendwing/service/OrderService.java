@@ -3,16 +3,9 @@ package com.wing.ecommercebackendwing.service;
 import com.wing.ecommercebackendwing.dto.mapper.OrderMapper;
 import com.wing.ecommercebackendwing.dto.request.order.CreateOrderRequest;
 import com.wing.ecommercebackendwing.dto.response.order.OrderResponse;
-import com.wing.ecommercebackendwing.model.entity.Address;
-import com.wing.ecommercebackendwing.model.entity.Cart;
-import com.wing.ecommercebackendwing.model.entity.Merchant;
-import com.wing.ecommercebackendwing.model.entity.Order;
-import com.wing.ecommercebackendwing.model.entity.OrderItem;
-
+import com.wing.ecommercebackendwing.model.entity.*;
 import com.wing.ecommercebackendwing.model.enums.OrderStatus;
-import com.wing.ecommercebackendwing.repository.AddressRepository;
-import com.wing.ecommercebackendwing.repository.CartRepository;
-import com.wing.ecommercebackendwing.repository.OrderRepository;
+import com.wing.ecommercebackendwing.repository.*;
 import com.wing.ecommercebackendwing.util.OrderNumberGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +29,9 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
     private final AddressRepository addressRepository;
+    private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
+    private final UserRepository userRepository;
     private final OrderNumberGenerator orderNumberGenerator;
     private final TaxService taxService;
     private final DeliveryFeeService deliveryFeeService;
@@ -43,28 +39,91 @@ public class OrderService {
 
     @Transactional
     public OrderResponse createOrder(UUID userId, CreateOrderRequest request) {
-        // Fetch cart
-        Cart cart = cartRepository.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("Cart not found"));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (cart.getItems().isEmpty()) {
-            throw new RuntimeException("Cart is empty");
+        List<OrderItem> orderItems = new ArrayList<>();
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        Merchant merchant = null;
+
+        // Try to fetch cart (optional now if items are provided in request)
+        Cart cart = cartRepository.findByUserId(userId).orElse(null);
+
+        if (request.getItems() != null && !request.getItems().isEmpty()) {
+            // Processing items from request
+            for (com.wing.ecommercebackendwing.dto.request.order.OrderItemRequest itemReq : request.getItems()) {
+                Product product = productRepository.findById(itemReq.getProductId())
+                        .orElseThrow(() -> new RuntimeException("Product not found: " + itemReq.getProductId()));
+
+                ProductVariant variant = null;
+                if (itemReq.getVariantId() != null) {
+                    variant = productVariantRepository.findById(itemReq.getVariantId())
+                            .orElseThrow(() -> new RuntimeException("Variant not found: " + itemReq.getVariantId()));
+                }
+
+                // Check stock
+                int stock = (variant != null) ? variant.getStock() : product.getStockQuantity();
+                if (stock < itemReq.getQuantity()) {
+                    throw new RuntimeException("Insufficient stock for product " + product.getName());
+                }
+
+                // Price
+                BigDecimal price = (variant != null) ? variant.getPrice() : product.getPrice();
+
+                // Merchant (from first product)
+                if (merchant == null) {
+                    merchant = product.getMerchant();
+                }
+
+                OrderItem orderItem = new OrderItem();
+                orderItem.setProduct(product);
+                orderItem.setVariant(variant);
+                orderItem.setProductName(product.getName());
+                orderItem.setProductImage(product.getImages());
+                orderItem.setVariantName(variant != null ? variant.getName() : null);
+                orderItem.setQuantity(itemReq.getQuantity());
+                orderItem.setUnitPrice(price);
+
+                BigDecimal itemSubtotal = price.multiply(new BigDecimal(itemReq.getQuantity()));
+                orderItem.setSubtotal(itemSubtotal);
+                orderItem.setCreatedAt(Instant.now());
+                orderItem.setUpdatedAt(Instant.now());
+
+                orderItems.add(orderItem);
+                totalAmount = totalAmount.add(itemSubtotal);
+            }
+        } else if (cart != null && !cart.getItems().isEmpty()) {
+            // Fallback: Copy cart items to order items
+            merchant = cart.getItems().get(0).getProduct().getMerchant();
+            for (com.wing.ecommercebackendwing.model.entity.CartItem cartItem : cart.getItems()) {
+                OrderItem orderItem = new OrderItem();
+                orderItem.setProduct(cartItem.getProduct());
+                orderItem.setVariant(cartItem.getVariant());
+                orderItem.setProductName(cartItem.getProduct().getName());
+                orderItem.setProductImage(cartItem.getProduct().getImages());
+                orderItem.setVariantName(cartItem.getVariant() != null ? cartItem.getVariant().getName() : null);
+                orderItem.setQuantity(cartItem.getQuantity());
+                orderItem.setUnitPrice(cartItem.getPrice());
+
+                BigDecimal itemSubtotal = cartItem.getPrice().multiply(new BigDecimal(cartItem.getQuantity()));
+                orderItem.setSubtotal(itemSubtotal);
+                orderItem.setCreatedAt(Instant.now());
+                orderItem.setUpdatedAt(Instant.now());
+
+                orderItems.add(orderItem);
+                totalAmount = totalAmount.add(itemSubtotal);
+            }
+        } else {
+            throw new RuntimeException("No items provided and no cart found");
         }
 
-        // Verify ownership
-        if (!cart.getUser().getId().equals(userId)) {
-            throw new RuntimeException("Unauthorized access");
-        }
-
-        // Get merchant from first cart item (assuming all items from same merchant)
-        Merchant merchant = cart.getItems().get(0).getProduct().getMerchant();
         if (merchant == null) {
             throw new RuntimeException("Product merchant not found");
         }
 
         // Create delivery address from shipping request
         Address deliveryAddress = new Address();
-        deliveryAddress.setUser(cart.getUser());
+        deliveryAddress.setUser(user);
         deliveryAddress.setStreet(request.getShippingAddress().getStreet());
         deliveryAddress.setCity(request.getShippingAddress().getCity());
         deliveryAddress.setProvince(request.getShippingAddress().getState());
@@ -76,7 +135,7 @@ public class OrderService {
 
         // Create order
         Order order = new Order();
-        order.setUser(cart.getUser());
+        order.setUser(user);
         order.setMerchant(merchant);
         order.setDeliveryAddress(savedAddress);
         order.setOrderNumber(orderNumberGenerator.generateOrderNumber());
@@ -84,28 +143,12 @@ public class OrderService {
         order.setOrderDate(Instant.now());
         order.setCreatedAt(Instant.now());
         order.setUpdatedAt(Instant.now());
+        order.setItems(new ArrayList<>());
 
-        // Copy cart items to order items
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        
-        for (com.wing.ecommercebackendwing.model.entity.CartItem cartItem : cart.getItems()) {
-            OrderItem orderItem = new OrderItem();
-            orderItem.setOrder(order);
-            orderItem.setProduct(cartItem.getProduct());
-            orderItem.setVariant(cartItem.getVariant());
-            orderItem.setProductName(cartItem.getProduct().getName());
-            orderItem.setProductImage(cartItem.getProduct().getImages());
-            orderItem.setVariantName(cartItem.getVariant() != null ? cartItem.getVariant().getName() : null);
-            orderItem.setQuantity(cartItem.getQuantity());
-            orderItem.setUnitPrice(cartItem.getPrice());
-            
-            BigDecimal itemSubtotal = cartItem.getPrice().multiply(new BigDecimal(cartItem.getQuantity()));
-            orderItem.setSubtotal(itemSubtotal);
-            orderItem.setCreatedAt(Instant.now());
-            orderItem.setUpdatedAt(Instant.now());
-            
-            order.getItems().add(orderItem);
-            totalAmount = totalAmount.add(itemSubtotal);
+        // Link items to order and add to list
+        for (OrderItem item : orderItems) {
+            item.setOrder(order);
+            order.getItems().add(item);
         }
 
         // Calculate order totals using services
@@ -132,9 +175,11 @@ public class OrderService {
         // Save order
         Order savedOrder = orderRepository.save(order);
 
-        // Clear cart after successful order
-        cart.getItems().clear();
-        cartRepository.save(cart);
+        // Clear cart after successful order if it exists
+        if (cart != null) {
+            cart.getItems().clear();
+            cartRepository.save(cart);
+        }
 
         log.info("Created order {} for user {}", savedOrder.getOrderNumber(), userId);
         return OrderMapper.toResponse(savedOrder);

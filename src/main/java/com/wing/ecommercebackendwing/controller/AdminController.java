@@ -1,5 +1,6 @@
 package com.wing.ecommercebackendwing.controller;
 
+import com.wing.ecommercebackendwing.dto.response.common.MessageResponse;
 import com.wing.ecommercebackendwing.dto.response.order.OrderResponse;
 import com.wing.ecommercebackendwing.service.AdminService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,5 +41,17 @@ public class AdminController {
             @Parameter(description = "Page size (1-100)", example = "20")
             @RequestParam(name = "size", defaultValue = "20") @Min(1) @Max(100) int size) {
         return ResponseEntity.ok(adminService.getAllOrders(page, size));
+    }
+
+    @PostMapping("/users/{id}/revoke")
+    @Operation(summary = "Revoke user access and terminate all sessions")
+    public ResponseEntity<MessageResponse> revokeUser(
+            @Parameter(description = "User ID to revoke")
+            @PathVariable java.util.UUID id) {
+        adminService.revokeUser(id);
+        return ResponseEntity.ok(MessageResponse.builder()
+                .success(true)
+                .message("User account revoked and all sessions terminated")
+                .build());
     }
 }

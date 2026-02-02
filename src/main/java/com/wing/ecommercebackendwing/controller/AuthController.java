@@ -11,6 +11,7 @@ import com.wing.ecommercebackendwing.security.jwt.TokenBlacklistService;
 import com.wing.ecommercebackendwing.service.EnhancedAuthService;
 import com.wing.ecommercebackendwing.service.TwoFactorAuthService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -39,7 +40,7 @@ public class AuthController {
     private final TokenBlacklistService tokenBlacklistService;
     private final JwtTokenProvider jwtTokenProvider;
 
-    @Value("${cookie.secure:true}")
+    @Value("${cookie.secure:false}")
     private boolean cookieSecure;
  
     @Value("${jwt.refresh-token.expiration:2592000000}")
@@ -205,6 +206,31 @@ public class AuthController {
         return ResponseEntity.ok(MessageResponse.builder()
                 .success(true)
                 .message("Logged out successfully")
+                .build());
+    }
+
+    @PostMapping("/change-password")
+    @Operation(summary = "Change password for authenticated user")
+    @SecurityRequirement(name = "Bearer Authentication")
+    public ResponseEntity<MessageResponse> changePassword(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody ChangePasswordRequest request,
+            @RequestHeader(value = "Authorization") String authHeader) {
+        
+        authService.changePassword(userDetails.getUserId(), request.getOldPassword(), request.getNewPassword());
+        
+        // Blacklist current access token to force immediate re-auth on next request
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String accessToken = authHeader.substring(7);
+            String jti = jwtTokenProvider.getJtiFromToken(accessToken);
+            if (jti != null) {
+                tokenBlacklistService.blacklist(jti);
+            }
+        }
+        
+        return ResponseEntity.ok(MessageResponse.builder()
+                .success(true)
+                .message("Password changed successfully. Please login again.")
                 .build());
     }
 
