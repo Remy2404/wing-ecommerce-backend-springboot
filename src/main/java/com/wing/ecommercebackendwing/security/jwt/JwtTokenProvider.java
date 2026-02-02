@@ -24,6 +24,15 @@ public class JwtTokenProvider {
     @Value("${jwt.expiration}")
     private long jwtExpirationInMs;
 
+    @jakarta.annotation.PostConstruct
+    public void validateConfig() {
+        if (jwtSecret == null || jwtSecret.length() < 32) {
+            log.error("JWT Secret is missing or too short for HS256 algorithm. Minimum 32 characters required.");
+            throw new IllegalStateException("Invalid JWT configuration");
+        }
+        log.info("JWT Signing Key successfully initialized from configuration.");
+    }
+
     private SecretKey getSigningKey() {
         byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
         return Keys.hmacShaKeyFor(keyBytes);

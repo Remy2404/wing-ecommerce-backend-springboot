@@ -10,9 +10,18 @@ import java.time.Duration;
 
 /**
  * In-memory cache for blacklisted JWT token IDs (JTIs).
- * Tokens are automatically evicted after the configured expiration time.
  * 
- * For multi-instance deployments, replace with Redis-based implementation.
+ * SCOPE:
+ * - This service provides a BEST-EFFORT revocation mechanism for specific tokens.
+ * - It is intended ONLY for explicit logout, password changes, or manual revocation.
+ * - It is NOT a substitute for session management or primary authentication logic.
+ * 
+ * PERSISTENCE:
+ * - This is intentionally NON-PERSISTENT.
+ * - Data loss upon backend restart is acceptable and expected by design.
+ * - Do NOT introduce Redis or DB dependency without architecture-level approval.
+ * 
+ * For multi-instance deployments requiring shared state, a Redis implementation is required.
  */
 @Service
 @Slf4j

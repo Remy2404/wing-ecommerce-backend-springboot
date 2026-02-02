@@ -38,9 +38,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     && tokenProvider.validateToken(jwt)
                     && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-                // Check if token is blacklisted
+
                 String jti = tokenProvider.getJtiFromToken(jwt);
-                if (jti != null && tokenBlacklistService.isBlacklisted(jti)) {
+                if (jti != null && !jti.isBlank() && tokenBlacklistService.isBlacklisted(jti)) {
                     log.debug("Rejected blacklisted token: {}", jti);
                     filterChain.doFilter(request, response);
                     return;

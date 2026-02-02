@@ -20,7 +20,7 @@ public class ProductMapper {
                 .comparePrice(product.getComparePrice())
                 .stock(product.getStockQuantity())
                 .images(product.getImages())
-                .rating(product.getRating().doubleValue())
+                .rating(product.getRating() != null ? product.getRating().doubleValue() : 0.0)
                 .build();
     }
 
