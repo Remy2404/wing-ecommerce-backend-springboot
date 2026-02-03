@@ -22,6 +22,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -45,6 +46,7 @@ public class PaymentServiceTest {
     private final String md5 = "aaad6ba89e1045b3ba46fa8542555882";
     private final String bakongTransactionId = "60241686f7708a4a520a778844556677"; // 32 chars
     private final String expectedTransactionId = "60241686f7708a4a520a778844556677";
+    private final UUID userId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
@@ -56,7 +58,11 @@ public class PaymentServiceTest {
         // Arrange
         Payment payment = new Payment();
         payment.setMd5(md5);
-        payment.setOrder(new Order());
+        Order order = new Order();
+        com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
+        user.setId(userId);
+        order.setUser(user);
+        payment.setOrder(order);
         
         when(paymentRepository.findByMd5(anyString())).thenReturn(Optional.of(payment));
         
@@ -74,7 +80,7 @@ public class PaymentServiceTest {
                 .thenReturn(responseEntity);
 
         // Act
-        PaymentVerificationResponse result = paymentService.verifyPaymentByMd5(md5);
+        PaymentVerificationResponse result = paymentService.verifyPaymentByMd5(md5, userId);
 
         // Assert
         assertTrue(result.isPaid());
@@ -90,7 +96,11 @@ public class PaymentServiceTest {
         // Arrange
         Payment payment = new Payment();
         payment.setMd5(md5);
-        payment.setOrder(new Order());
+        Order order = new Order();
+        com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
+        user.setId(userId);
+        order.setUser(user);
+        payment.setOrder(order);
         
         when(paymentRepository.findByMd5(anyString())).thenReturn(Optional.of(payment));
         
@@ -108,7 +118,7 @@ public class PaymentServiceTest {
                 .thenReturn((ResponseEntity) responseEntity);
 
         // Act
-        PaymentVerificationResponse result = paymentService.verifyPaymentByMd5(md5);
+        PaymentVerificationResponse result = paymentService.verifyPaymentByMd5(md5, userId);
 
         // Assert
         assertTrue(result.isPaid());

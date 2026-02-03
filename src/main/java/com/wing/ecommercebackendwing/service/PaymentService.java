@@ -41,9 +41,13 @@ public class PaymentService {
     private String bakongApiToken;
 
     @Transactional
-    public KHQRResultDto generateKHQR(UUID orderId) {
+    public KHQRResultDto generateKHQR(UUID orderId, UUID userId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        if (!order.getUser().getId().equals(userId)) {
+            throw new RuntimeException("Unauthorized: This order does not belong to you.");
+        }
 
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new RuntimeException("Order is not in PENDING status");
@@ -84,6 +88,10 @@ public class PaymentService {
         payment.setStatus(PaymentStatus.PENDING);
         payment.setAmount(order.getTotalAmount());
         payment.setMd5(md5);
+        
+        // Set QR code expiration (30 minutes from now)
+        payment.setExpiresAt(Instant.now().plusSeconds(30 * 60));
+        
         paymentRepository.save(payment);
 
         log.info("Generated KHQR for order {} with MD5 {}", order.getOrderNumber(), md5);
@@ -91,12 +99,13 @@ public class PaymentService {
         return KHQRResultDto.builder()
                 .qrString(qrData)
                 .md5(md5)
+                .expiresAt(payment.getExpiresAt())
                 .build();
     }
 
 
     @Transactional
-    public PaymentVerificationResponse verifyPaymentByMd5(String md5) {
+    public PaymentVerificationResponse verifyPaymentByMd5(String md5, UUID userId) {
         // Normalize MD5 to lowercase as some SDKs/APIs might vary in casing
         String normalizedMd5 = md5.trim().toLowerCase();
         
@@ -111,12 +120,26 @@ public class PaymentService {
                     .build();
         }
 
+        // Verify ownership
+        if (!payment.getOrder().getUser().getId().equals(userId)) {
+            throw new RuntimeException("Unauthorized: This payment does not belong to you.");
+        }
+
         if (payment.getStatus() == PaymentStatus.COMPLETED) {
             return PaymentVerificationResponse.builder()
                     .isPaid(true)
                     .paidAmount(payment.getAmount().doubleValue())
                     .currency("USD")
                     .message("Payment already completed")
+                    .build();
+        }
+
+        // Check if QR code has expired
+        if (payment.getExpiresAt() != null && Instant.now().isAfter(payment.getExpiresAt())) {
+            log.warn("QR code expired for payment MD5: {}", normalizedMd5);
+            return PaymentVerificationResponse.builder()
+                    .isPaid(false)
+                    .message("QR code has expired. Please generate a new one.")
                     .build();
         }
 
@@ -213,7 +236,7 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentVerificationResponse verifyPayment(String transactionId) {
+    public PaymentVerificationResponse verifyPayment(String transactionId, UUID userId) {
         if (transactionId == null) {
             return PaymentVerificationResponse.builder()
                     .isPaid(false)
@@ -221,7 +244,7 @@ public class PaymentService {
                     .build();
         }
         
-        return verifyPaymentByMd5(transactionId.trim());
+        return verifyPaymentByMd5(transactionId.trim(), userId);
     }
 
 

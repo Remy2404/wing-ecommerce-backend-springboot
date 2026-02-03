@@ -5,6 +5,8 @@ import com.wing.ecommercebackendwing.dto.response.common.ValidationErrorResponse
 import com.wing.ecommercebackendwing.dto.response.order.OrderResponse;
 import com.wing.ecommercebackendwing.security.CustomUserDetails;
 import com.wing.ecommercebackendwing.service.OrderService;
+import org.springframework.security.access.prepost.PreAuthorize;
+import java.util.UUID;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -77,6 +79,42 @@ public class OrderController {
             @Parameter(description = "Order number", example = "ORD-20260128-ABC123", required = true)
             @PathVariable(name = "orderNumber") String orderNumber) {
         OrderResponse response = orderService.getOrderByNumber(userDetails.getUserId(), orderNumber);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/all")
+    @Operation(summary = "Get all orders (Admin only)")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<OrderResponse>> getAllOrders(
+            @Parameter(description = "Page number (0-indexed)", example = "0")
+            @RequestParam(name = "page", defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Page size (1-100)", example = "20")
+            @RequestParam(name = "size", defaultValue = "20") @Min(1) @Max(100) int size) {
+        Page<OrderResponse> orders = orderService.getAllOrders(page, size);
+        return ResponseEntity.ok(orders);
+    }
+
+    @GetMapping("/merchant")
+    @Operation(summary = "Get current merchant's orders")
+    @PreAuthorize("hasRole('MERCHANT')")
+    public ResponseEntity<Page<OrderResponse>> getMerchantOrders(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Parameter(description = "Page number (0-indexed)", example = "0")
+            @RequestParam(name = "page", defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Page size (1-100)", example = "20")
+            @RequestParam(name = "size", defaultValue = "20") @Min(1) @Max(100) int size) {
+        Page<OrderResponse> orders = orderService.getMerchantOrders(userDetails.getUserId(), page, size);
+        return ResponseEntity.ok(orders);
+    }
+
+    @PutMapping("/{id}/status")
+    @Operation(summary = "Update order status (Admin/Merchant/User cancel)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MERCHANT', 'CUSTOMER')")
+    public ResponseEntity<OrderResponse> updateOrderStatus(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable(name = "id") UUID id,
+            @RequestParam(name = "status") com.wing.ecommercebackendwing.model.enums.OrderStatus status) {
+        OrderResponse response = orderService.updateOrderStatus(id, status, userDetails.getUserId());
         return ResponseEntity.ok(response);
     }
 }

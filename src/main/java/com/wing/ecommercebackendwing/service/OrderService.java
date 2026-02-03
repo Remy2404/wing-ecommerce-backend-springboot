@@ -20,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 import java.util.*;
+import com.wing.ecommercebackendwing.model.enums.UserRole;
 
 @Service
 @RequiredArgsConstructor
@@ -50,7 +51,7 @@ public class OrderService {
         Cart cart = cartRepository.findByUserId(userId).orElse(null);
 
         if (request.getItems() != null && !request.getItems().isEmpty()) {
-            // Processing items from request
+            // Processing items from request (Buy Now flow)
             for (com.wing.ecommercebackendwing.dto.request.order.OrderItemRequest itemReq : request.getItems()) {
                 Product product = productRepository.findById(itemReq.getProductId())
                         .orElseThrow(() -> new RuntimeException("Product not found: " + itemReq.getProductId()));
@@ -67,12 +68,23 @@ public class OrderService {
                     throw new RuntimeException("Insufficient stock for product " + product.getName());
                 }
 
+                // Decrement stock
+                if (variant != null) {
+                    variant.setStock(variant.getStock() - itemReq.getQuantity());
+                    productVariantRepository.save(variant);
+                } else {
+                    product.setStockQuantity(product.getStockQuantity() - itemReq.getQuantity());
+                    productRepository.save(product);
+                }
+
                 // Price
                 BigDecimal price = (variant != null) ? variant.getPrice() : product.getPrice();
 
-                // Merchant (from first product)
+                // Merchant Validation
                 if (merchant == null) {
                     merchant = product.getMerchant();
+                } else if (!merchant.getId().equals(product.getMerchant().getId())) {
+                    throw new RuntimeException("All items in an order must belong to the same merchant");
                 }
 
                 OrderItem orderItem = new OrderItem();
@@ -93,15 +105,39 @@ public class OrderService {
                 totalAmount = totalAmount.add(itemSubtotal);
             }
         } else if (cart != null && !cart.getItems().isEmpty()) {
-            // Fallback: Copy cart items to order items
-            merchant = cart.getItems().get(0).getProduct().getMerchant();
+            // Checkout from cart flow
             for (com.wing.ecommercebackendwing.model.entity.CartItem cartItem : cart.getItems()) {
+                Product product = cartItem.getProduct();
+                ProductVariant variant = cartItem.getVariant();
+
+                // Check stock
+                int stock = (variant != null) ? variant.getStock() : product.getStockQuantity();
+                if (stock < cartItem.getQuantity()) {
+                    throw new RuntimeException("Insufficient stock for product " + product.getName() + " in your cart");
+                }
+
+                // Decrement stock
+                if (variant != null) {
+                    variant.setStock(variant.getStock() - cartItem.getQuantity());
+                    productVariantRepository.save(variant);
+                } else {
+                    product.setStockQuantity(product.getStockQuantity() - cartItem.getQuantity());
+                    productRepository.save(product);
+                }
+
+                // Merchant Validation
+                if (merchant == null) {
+                    merchant = product.getMerchant();
+                } else if (!merchant.getId().equals(product.getMerchant().getId())) {
+                    throw new RuntimeException("Your cart contains items from multiple merchants. Please checkout separately per merchant.");
+                }
+
                 OrderItem orderItem = new OrderItem();
-                orderItem.setProduct(cartItem.getProduct());
-                orderItem.setVariant(cartItem.getVariant());
-                orderItem.setProductName(cartItem.getProduct().getName());
-                orderItem.setProductImage(cartItem.getProduct().getImages());
-                orderItem.setVariantName(cartItem.getVariant() != null ? cartItem.getVariant().getName() : null);
+                orderItem.setProduct(product);
+                orderItem.setVariant(variant);
+                orderItem.setProductName(product.getName());
+                orderItem.setProductImage(product.getImages());
+                orderItem.setVariantName(variant != null ? variant.getName() : null);
                 orderItem.setQuantity(cartItem.getQuantity());
                 orderItem.setUnitPrice(cartItem.getPrice());
 
@@ -175,10 +211,12 @@ public class OrderService {
         // Save order
         Order savedOrder = orderRepository.save(order);
 
-        // Clear cart after successful order if it exists
-        if (cart != null) {
-            cart.getItems().clear();
-            cartRepository.save(cart);
+        // Clear cart ONLY if we checked out FROM the cart
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            if (cart != null) {
+                cart.getItems().clear();
+                cartRepository.save(cart);
+            }
         }
 
         log.info("Created order {} for user {}", savedOrder.getOrderNumber(), userId);
@@ -196,6 +234,19 @@ public class OrderService {
         return orders.map(OrderMapper::toResponse);
     }
 
+    public Page<OrderResponse> getMerchantOrders(UUID userId, int page, int size) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        if (user.getMerchant() == null) {
+            throw new RuntimeException("User is not a merchant");
+        }
+
+        Pageable pageable = PageRequest.of(page, Math.min(size, 50), Sort.by(Sort.Direction.DESC, "orderDate"));
+        Page<Order> orders = orderRepository.findByMerchantId(user.getMerchant().getId(), pageable);
+        return orders.map(OrderMapper::toResponse);
+    }
+
     public OrderResponse getOrderByNumber(UUID userId, String orderNumber) {
         if (orderNumber == null || orderNumber.isBlank()) {
             throw new IllegalArgumentException("Order number cannot be empty");
@@ -204,8 +255,15 @@ public class OrderService {
         Order order = orderRepository.findByOrderNumber(orderNumber.trim())
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
- // Verify ownership
-        if (!order.getUser().getId().equals(userId)) {
+        User requestingUser = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Verify ownership/access: Buyer, Assigned Merchant, or Admin
+        boolean isBuyer = order.getUser().getId().equals(userId);
+        boolean isMerchant = order.getMerchant().getUser().getId().equals(userId);
+        boolean isAdmin = requestingUser.getRole() == UserRole.ADMIN;
+
+        if (!isBuyer && !isMerchant && !isAdmin) {
             throw new RuntimeException("Unauthorized access to order");
         }
 
@@ -217,9 +275,42 @@ public class OrderService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        // Admin/delivery permission check should be done at controller level with @PreAuthorize
+        User requestingUser = userRepository.findById(requestingUserId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        com.wing.ecommercebackendwing.model.enums.UserRole role = requestingUser.getRole();
+
+        // Authorization Logic
+        if (role == com.wing.ecommercebackendwing.model.enums.UserRole.ADMIN) {
+            // Admin can do anything
+        } else if (role == com.wing.ecommercebackendwing.model.enums.UserRole.MERCHANT) {
+            // Merchant can only update their own orders
+            if (!order.getMerchant().getUser().getId().equals(requestingUserId)) {
+                throw new RuntimeException("Unauthorized: This order does not belong to your store.");
+            }
+        } else {
+            // Regular user can ONLY cancel their own order if it's still pending
+            if (newStatus == OrderStatus.CANCELLED) {
+                if (!order.getUser().getId().equals(requestingUserId)) {
+                    throw new RuntimeException("Unauthorized: You can only cancel your own orders.");
+                }
+                if (order.getStatus() != OrderStatus.PENDING) {
+                    throw new RuntimeException("Cannot cancel order that is already " + order.getStatus());
+                }
+            } else {
+                throw new RuntimeException("Unauthorized: You do not have permission to update order status to " + newStatus);
+            }
+        }
 
         order.setStatus(newStatus);
+        
+        // Update specific functional timestamps
+        if (newStatus == OrderStatus.DELIVERED) {
+            order.setDeliveredAt(Instant.now());
+        } else if (newStatus == OrderStatus.CANCELLED) {
+            order.setCancelledAt(Instant.now());
+        }
+        
         order.setUpdatedAt(Instant.now());
         Order savedOrder = orderRepository.save(order);
 

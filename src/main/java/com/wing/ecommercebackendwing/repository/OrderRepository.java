@@ -18,6 +18,9 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Page<Order> findByUserId(UUID userId, Pageable pageable);
     Optional<Order> findByOrderNumber(String orderNumber);
     long countByUserId(UUID userId);
+    Optional<Order> findFirstByOrderNumberStartingWithOrderByOrderNumberDesc(String prefix);
+    Page<Order> findByMerchantId(UUID merchantId, Pageable pageable);
+
 
     @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o")
     BigDecimal sumTotalAmount();
