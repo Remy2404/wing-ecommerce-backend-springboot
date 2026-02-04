@@ -99,7 +99,7 @@ public class SecurityConfig {
 
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setExposedHeaders(Arrays.asList(
-                "Authorization","X-Refresh-Token"
+                "Authorization","X-Refresh-Token","Set-Cookie"
         ));
         configuration.setAllowCredentials(true);
 

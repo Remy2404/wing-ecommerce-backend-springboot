@@ -53,8 +53,8 @@ public class AuthController {
         return ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, tokenValue)
                 .httpOnly(true)
                 .secure(cookieSecure)
-                .sameSite("Strict")
-                .path(REFRESH_TOKEN_COOKIE_PATH)
+                .sameSite("Lax")
+                .path("/")
                 .maxAge(maxAgeSeconds)
                 .build();
     }
