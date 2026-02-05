@@ -66,6 +66,6 @@ services:
 databases:
   - name: wing-db
     databaseName: ecommerce_db
-    user: postgres
+    user: ecommerceadmin
     region: singapore
     plan: free
