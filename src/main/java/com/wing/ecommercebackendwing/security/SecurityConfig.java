@@ -30,6 +30,9 @@ public class SecurityConfig {
     private final JwtAuthenticationEntryPoint unauthorizedHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    @org.springframework.beans.factory.annotation.Value("${cors.allowed-origins}")
+    private String allowedOrigins;
+
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
         return authConfig.getAuthenticationManager();
@@ -88,6 +91,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
+        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+        
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:*",
                 "http://127.0.0.1:*",
@@ -96,7 +101,7 @@ public class SecurityConfig {
         ));
 
         configuration.setAllowedMethods(Arrays.asList(
-                "GET","POST","PUT","DELETE","OPTIONS"
+                "GET","POST","PUT","DELETE","OPTIONS","HEAD"
         ));
 
         configuration.setAllowedHeaders(Arrays.asList("*"));
