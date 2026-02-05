@@ -67,14 +67,14 @@ public class AddressService {
             throw new RuntimeException("Unauthorized: Address does not belong to user");
         }
 
-        if (request.getLabel() != null) address.setLabel(request.getLabel());
-        if (request.getFullName() != null) address.setFullName(request.getFullName());
-        if (request.getPhone() != null) address.setPhone(request.getPhone());
-        if (request.getStreet() != null) address.setStreet(request.getStreet());
-        if (request.getCity() != null) address.setCity(request.getCity());
-        if (request.getState() != null) address.setProvince(request.getState());
-        if (request.getPostalCode() != null) address.setPostalCode(request.getPostalCode());
-        if (request.getCountry() != null) address.setCountry(request.getCountry());
+        if (request.getLabel() != null) address.setLabel(requireNonBlank(request.getLabel(), "label"));
+        if (request.getFullName() != null) address.setFullName(requireNonBlank(request.getFullName(), "fullName"));
+        if (request.getPhone() != null) address.setPhone(requireNonBlank(request.getPhone(), "phone"));
+        if (request.getStreet() != null) address.setStreet(requireNonBlank(request.getStreet(), "street"));
+        if (request.getCity() != null) address.setCity(requireNonBlank(request.getCity(), "city"));
+        if (request.getState() != null) address.setProvince(requireNonBlank(request.getState(), "state"));
+        if (request.getPostalCode() != null) address.setPostalCode(requireNonBlank(request.getPostalCode(), "postalCode"));
+        if (request.getCountry() != null) address.setCountry(requireNonBlank(request.getCountry(), "country"));
         if (request.getIsDefault() != null) address.setIsDefault(request.getIsDefault());
 
         address.setUpdatedAt(Instant.now());
@@ -116,5 +116,12 @@ public class AddressService {
         addressRepository.saveAll(addresses);
 
         return AddressMapper.toResponse(address);
+    }
+
+    private String requireNonBlank(String value, String field) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new RuntimeException("Invalid value for " + field);
+        }
+        return value.trim();
     }
 }

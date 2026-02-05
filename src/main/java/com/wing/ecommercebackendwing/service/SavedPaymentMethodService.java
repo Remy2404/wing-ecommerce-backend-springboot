@@ -66,10 +66,10 @@ public class SavedPaymentMethodService {
             throw new RuntimeException("Unauthorized: Payment method does not belong to user");
         }
 
-        if (request.getBrand() != null) method.setBrand(request.getBrand());
-        if (request.getLast4() != null) method.setLast4(request.getLast4());
-        if (request.getExpMonth() != null) method.setExpMonth(request.getExpMonth());
-        if (request.getExpYear() != null) method.setExpYear(request.getExpYear());
+        if (request.getBrand() != null) method.setBrand(request.getBrand().trim());
+        if (request.getLast4() != null) method.setLast4(validateLast4(request.getLast4()));
+        if (request.getExpMonth() != null) method.setExpMonth(validateExpMonth(request.getExpMonth()));
+        if (request.getExpYear() != null) method.setExpYear(validateExpYear(request.getExpYear()));
         if (request.getIsDefault() != null) method.setIsDefault(request.getIsDefault());
         method.setUpdatedAt(Instant.now());
 
@@ -111,5 +111,27 @@ public class SavedPaymentMethodService {
         savedPaymentMethodRepository.saveAll(methods);
 
         return SavedPaymentMethodMapper.toResponse(method);
+    }
+
+    private String validateLast4(String last4) {
+        String value = last4.trim();
+        if (!value.matches("\\d{4}")) {
+            throw new RuntimeException("Invalid last4 digits");
+        }
+        return value;
+    }
+
+    private Integer validateExpMonth(Integer month) {
+        if (month < 1 || month > 12) {
+            throw new RuntimeException("Invalid expiration month");
+        }
+        return month;
+    }
+
+    private Integer validateExpYear(Integer year) {
+        if (year < 2000 || year > 2100) {
+            throw new RuntimeException("Invalid expiration year");
+        }
+        return year;
     }
 }
