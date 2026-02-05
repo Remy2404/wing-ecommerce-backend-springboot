@@ -25,6 +25,7 @@ public class UserMapper {
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
         user.setRole(UserRole.CUSTOMER);
+        user.setIsActive(true);
         return user;
     }
 }

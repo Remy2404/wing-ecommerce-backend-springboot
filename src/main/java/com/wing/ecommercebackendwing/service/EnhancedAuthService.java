@@ -38,15 +38,25 @@ public class EnhancedAuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        // Validate password confirmation
+        if (!request.getPassword().equals(request.getConfirmPassword())) {
+            throw new com.wing.ecommercebackendwing.exception.custom.BadRequestException("Passwords do not match");
+        }
+
         // Validate email doesn't exist
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already registered");
+            throw new com.wing.ecommercebackendwing.exception.custom.BadRequestException("Email already registered");
+        }
+
+        // Validate phone doesn't exist
+        if (userRepository.existsByPhone(request.getPhone())) {
+            throw new com.wing.ecommercebackendwing.exception.custom.BadRequestException("Phone number already registered");
         }
 
         // Validate password strength
         PasswordValidator.ValidationResult validation = PasswordValidator.validate(request.getPassword());
         if (!validation.isValid()) {
-            throw new RuntimeException(validation.getMessage());
+            throw new com.wing.ecommercebackendwing.exception.custom.BadRequestException(validation.getMessage());
         }
 
         // Create user
@@ -56,6 +66,11 @@ public class EnhancedAuthService {
         user.setEmailVerified(false);
         user.setEmailVerificationToken(UUID.randomUUID().toString());
         user.setEmailVerificationSentAt(Instant.now());
+        
+        // Explicitly set timestamps (since JPA auditing is not enabled)
+        Instant now = Instant.now();
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
         
         User savedUser = userRepository.save(user);
 
@@ -130,6 +145,10 @@ public class EnhancedAuthService {
         // Generate tokens
         String accessToken = jwtTokenProvider.generateToken(user);
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
+
+        // Update last login (optional, but good practice)
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
 
         return AuthResponse.builder()
                 .token(accessToken)
