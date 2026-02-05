@@ -1,0 +1,71 @@
+services:
+  - type: web
+    name: wing-backend
+    runtime: docker
+    plan: free
+    region: singapore # Adjust based on user preference
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: PORT
+        value: 8080
+      # Database connection
+      - key: SPRING_DATASOURCE_URL
+        value: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+      - key: DB_HOST
+        fromDatabase:
+          name: wing-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: wing-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: wing-db
+          property: database
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: wing-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: wing-db
+          property: password
+      # Secrets (to be populated in Render Dashboard)
+      - key: JWT_SECRET
+        sync: false
+      - key: BAKONG_API_TOKEN
+        sync: false
+      - key: KHQR_MERCHANT_BAKONG_ID
+        sync: false
+      - key: KHQR_MERCHANT_ID
+        sync: false
+      - key: KHQR_MERCHANT_NAME
+        sync: false
+      - key: KHQR_ACQUIRING_BANK
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SPRING_MAIL_HOST
+        sync: false
+      - key: SPRING_MAIL_PORT
+        value: 587
+      - key: SPRING_MAIL_USERNAME
+        sync: false
+      - key: SPRING_MAIL_PASSWORD
+        sync: false
+      # Application URLs
+      - key: APP_FRONTEND_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+databases:
+  - name: wing-db
+    databaseName: ecommerce_db
+    user: postgres
+    region: singapore
+    plan: free
