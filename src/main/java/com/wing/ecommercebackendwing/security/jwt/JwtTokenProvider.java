@@ -5,8 +5,8 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import com.wing.ecommercebackendwing.config.JwtProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
@@ -19,14 +19,15 @@ import java.util.UUID;
 @Slf4j
 public class JwtTokenProvider {
 
-    @Value("${jwt.secret}")
-    private String jwtSecret;
+    private final JwtProperties jwtProperties;
 
-    @Value("${jwt.expiration}")
-    private long jwtExpirationInMs;
+    public JwtTokenProvider(JwtProperties jwtProperties) {
+        this.jwtProperties = jwtProperties;
+    }
 
     @jakarta.annotation.PostConstruct
     public void validateConfig() {
+        String jwtSecret = jwtProperties.getSecret();
         if (jwtSecret == null || jwtSecret.length() < 32) {
             log.error("JWT Secret is missing or too short for HS256 algorithm. Minimum 32 characters required.");
             throw new IllegalStateException("Invalid JWT configuration");
@@ -35,14 +36,22 @@ public class JwtTokenProvider {
     }
 
     private SecretKey getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
+        byte[] keyBytes = Decoders.BASE64.decode(jwtProperties.getSecret());
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
+    /**
+     * Backwards-compatible entrypoint for access tokens.
+     * Access tokens are JWTs; refresh tokens are opaque and handled by RefreshTokenService.
+     */
     public String generateToken(Authentication authentication) {
+        return generateAccessToken(authentication);
+    }
+
+    public String generateAccessToken(Authentication authentication) {
         String username = authentication.getName();
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + jwtExpirationInMs);
+        Date expiry = new Date(now.getTime() + jwtProperties.getAccessToken().getExpiration());
 
         return Jwts.builder()
                 .setId(UUID.randomUUID().toString())
@@ -55,9 +64,17 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    /**
+     * Backwards-compatible entrypoint for access tokens.
+     * Access tokens are JWTs; refresh tokens are opaque and handled by RefreshTokenService.
+     */
     public String generateToken(User user) {
+        return generateAccessToken(user);
+    }
+
+    public String generateAccessToken(User user) {
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + jwtExpirationInMs);
+        Date expiry = new Date(now.getTime() + jwtProperties.getAccessToken().getExpiration());
 
         return Jwts.builder()
                 .setId(UUID.randomUUID().toString())
@@ -167,6 +184,13 @@ public class JwtTokenProvider {
             log.error("Invalid temp token: {}", e.getMessage());
             throw new RuntimeException("INVALID_TEMP_TOKEN");
         }
+    }
+
+    /**
+     * Refresh tokens are opaque strings stored in DB. This TTL is exposed for diagnostics/metrics if needed.
+     */
+    public long getRefreshTokenExpirationInMs() {
+        return jwtProperties.getRefreshToken().getExpiration();
     }
 }
 

@@ -3,8 +3,8 @@ package com.wing.ecommercebackendwing.security.jwt;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import com.wing.ecommercebackendwing.config.JwtProperties;
 
 import java.time.Duration;
 
@@ -30,7 +30,8 @@ public class TokenBlacklistService {
 
     private final Cache<String, Boolean> blacklist;
 
-    public TokenBlacklistService(@Value("${jwt.expiration:3600000}") long jwtExpirationMs) {
+    public TokenBlacklistService(JwtProperties jwtProperties) {
+        long jwtExpirationMs = jwtProperties.getAccessToken().getExpiration();
         this.blacklist = Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofMillis(jwtExpirationMs))
                 .maximumSize(10_000)

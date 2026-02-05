@@ -5,6 +5,11 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.wing.ecommercebackendwing.dto.response.order.AddressResponse;
+import com.wing.ecommercebackendwing.dto.response.user.SavedPaymentMethodResponse;
+
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -17,6 +22,13 @@ public class UserResponse {
     private String firstName;
     private String lastName;
     private String role;
-    private String avatar;
+    private String avatarUrl;
+    private String phoneNumber;
+    private Boolean isActive;
+    private Boolean emailVerified;
+    private Instant createdAt;
+    private Instant updatedAt;
     private boolean twofaEnabled;
+    private List<AddressResponse> addresses;
+    private List<SavedPaymentMethodResponse> savedPaymentMethods;
 }

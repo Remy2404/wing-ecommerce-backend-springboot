@@ -4,6 +4,7 @@ import com.wing.ecommercebackendwing.dto.response.common.Pagination;
 import com.wing.ecommercebackendwing.dto.response.order.OrderItemResponse;
 import com.wing.ecommercebackendwing.dto.response.order.OrderListResponse;
 import com.wing.ecommercebackendwing.dto.response.order.OrderResponse;
+import com.wing.ecommercebackendwing.dto.response.order.OrderShippingAddressResponse;
 import com.wing.ecommercebackendwing.model.entity.Order;
 import com.wing.ecommercebackendwing.model.entity.OrderItem;
 
@@ -18,9 +19,23 @@ public class OrderMapper {
                 .map(OrderMapper::toOrderItemResponse)
                 .collect(Collectors.toList());
 
+        OrderShippingAddressResponse shippingAddress = null;
+        if (order.getDeliveryAddress() != null) {
+            shippingAddress = OrderShippingAddressResponse.builder()
+                    .fullName(order.getDeliveryAddress().getFullName())
+                    .phone(order.getDeliveryAddress().getPhone())
+                    .street(order.getDeliveryAddress().getStreet())
+                    .city(order.getDeliveryAddress().getCity())
+                    .state(order.getDeliveryAddress().getProvince())
+                    .zipCode(order.getDeliveryAddress().getPostalCode())
+                    .country(order.getDeliveryAddress().getCountry())
+                    .build();
+        }
+
         return OrderResponse.builder()
                 .id(order.getId())
                 .orderNumber(order.getOrderNumber())
+                .userId(order.getUser() != null ? order.getUser().getId() : null)
                 .status(order.getStatus().name())
                 .total(order.getTotal())
                 .subtotal(order.getSubtotal())
@@ -28,8 +43,12 @@ public class OrderMapper {
                 .discount(order.getDiscount())
                 .tax(order.getTax())
                 .paymentStatus(order.getPayment() != null ? order.getPayment().getStatus().name() : "PENDING")
+                .paymentMethod(order.getPayment() != null ? order.getPayment().getMethod().name() : null)
+                .shippingAddress(shippingAddress)
+                .notes(order.getDeliveryInstructions())
                 .items(itemResponses)
                 .createdAt(order.getCreatedAt())
+                .updatedAt(order.getUpdatedAt())
                 .build();
     }
 

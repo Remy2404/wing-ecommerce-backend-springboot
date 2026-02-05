@@ -109,4 +109,7 @@ public class User {
 
     @OneToMany(mappedBy = "driver", cascade = CascadeType.ALL)
     private List<Delivery> deliveries;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    private List<SavedPaymentMethod> savedPaymentMethods;
 }

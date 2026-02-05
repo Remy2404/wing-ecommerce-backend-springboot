@@ -13,6 +13,7 @@ import java.util.UUID;
 public class OrderResponse {
     private UUID id;
     private String orderNumber;
+    private UUID userId;
     private String status;
     private BigDecimal total;
     private BigDecimal subtotal;
@@ -20,6 +21,10 @@ public class OrderResponse {
     private BigDecimal discount;
     private BigDecimal tax;
     private String paymentStatus;
+    private String paymentMethod;
+    private OrderShippingAddressResponse shippingAddress;
+    private String notes;
     private List<OrderItemResponse> items;
     private Instant createdAt;
+    private Instant updatedAt;
 }

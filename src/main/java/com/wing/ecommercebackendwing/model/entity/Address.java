@@ -23,6 +23,12 @@ public class Address {
     @Column(length = 50)
     private String label;
 
+    @Column(name = "full_name", length = 150)
+    private String fullName;
+
+    @Column(length = 30)
+    private String phone;
+
     @Column(nullable = false)
     private String street;
 
@@ -34,6 +40,9 @@ public class Address {
 
     @Column(nullable = false, length = 100)
     private String province;
+
+    @Column(length = 100)
+    private String country;
 
     @Column(length = 20)
     private String postalCode;
@@ -49,4 +58,7 @@ public class Address {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    @Column(name = "updated_at")
+    private Instant updatedAt;
 }

@@ -1,6 +1,5 @@
-package com.wing.ecommercebackendwing.dto.request.order;
+package com.wing.ecommercebackendwing.dto.request.address;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,25 +9,14 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ShippingAddressRequest {
-    @NotBlank
+public class UpdateAddressRequest {
+    private String label;
     private String fullName;
-
-    @NotBlank
-    private String street;
-
-    @NotBlank
-    private String city;
-
-    @NotBlank
-    private String state;
-
-    @NotBlank
-    private String zipCode;
-
-    @NotBlank
-    private String country;
-
-    @NotBlank
     private String phone;
+    private String street;
+    private String city;
+    private String state;
+    private String postalCode;
+    private String country;
+    private Boolean isDefault;
 }

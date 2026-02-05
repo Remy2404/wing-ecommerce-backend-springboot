@@ -5,6 +5,7 @@ import com.wing.ecommercebackendwing.dto.response.auth.AuthResponse;
 import com.wing.ecommercebackendwing.dto.response.auth.TwoFactorResponse;
 import com.wing.ecommercebackendwing.dto.response.common.MessageResponse;
 import com.wing.ecommercebackendwing.dto.response.common.ValidationErrorResponse;
+import com.wing.ecommercebackendwing.config.JwtProperties;
 import com.wing.ecommercebackendwing.security.CustomUserDetails;
 import com.wing.ecommercebackendwing.security.jwt.JwtTokenProvider;
 import com.wing.ecommercebackendwing.security.jwt.TokenBlacklistService;
@@ -39,13 +40,11 @@ public class AuthController {
     private final TwoFactorAuthService twoFactorAuthService;
     private final TokenBlacklistService tokenBlacklistService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final JwtProperties jwtProperties;
 
     @Value("${cookie.secure:false}")
     private boolean cookieSecure;
  
-    @Value("${jwt.refresh-token.expiration:2592000000}")
-    private long refreshTokenDurationMs;
-
     private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
     private static final String REFRESH_TOKEN_COOKIE_PATH = "/api";
 
@@ -84,7 +83,7 @@ public class AuthController {
         
         // Set refresh token as HttpOnly cookie (not accessible via JavaScript)
         if (response.getRefreshToken() != null) {
-            long maxAgeSeconds = refreshTokenDurationMs / 1000;
+            long maxAgeSeconds = jwtProperties.getRefreshToken().getExpiration() / 1000;
             ResponseCookie cookie = createRefreshTokenCookie(response.getRefreshToken(), maxAgeSeconds);
             httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
             response.setRefreshToken(null);
@@ -107,7 +106,7 @@ public class AuthController {
             
             // Set refresh token as HttpOnly cookie
             if (response.getRefreshToken() != null) {
-                long maxAgeSeconds = refreshTokenDurationMs / 1000;
+                long maxAgeSeconds = jwtProperties.getRefreshToken().getExpiration() / 1000;
                 ResponseCookie cookie = createRefreshTokenCookie(response.getRefreshToken(), maxAgeSeconds);
                 httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
                 response.setRefreshToken(null);
@@ -138,7 +137,7 @@ public class AuthController {
         
         // Set new refresh token as HttpOnly cookie
         if (response.getRefreshToken() != null) {
-            long maxAgeSeconds = refreshTokenDurationMs / 1000;
+            long maxAgeSeconds = jwtProperties.getRefreshToken().getExpiration() / 1000;
             ResponseCookie cookie = createRefreshTokenCookie(response.getRefreshToken(), maxAgeSeconds);
             httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
             response.setRefreshToken(null);

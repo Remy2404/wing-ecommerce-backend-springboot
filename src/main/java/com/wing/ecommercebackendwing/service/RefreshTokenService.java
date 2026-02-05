@@ -1,5 +1,6 @@
 package com.wing.ecommercebackendwing.service;
 
+import com.wing.ecommercebackendwing.config.JwtProperties;
 import com.wing.ecommercebackendwing.exception.custom.TokenRefreshException;
 import com.wing.ecommercebackendwing.model.entity.RefreshToken;
 import com.wing.ecommercebackendwing.model.entity.User;
@@ -7,7 +8,6 @@ import com.wing.ecommercebackendwing.repository.RefreshTokenRepository;
 import com.wing.ecommercebackendwing.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,11 +20,9 @@ import java.util.UUID;
 @Slf4j
 public class RefreshTokenService {
 
-    @Value("${jwt.refresh-token.expiration:2592000000}") // 30 days default
-    private Long refreshTokenDurationMs;
-
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
+    private final JwtProperties jwtProperties;
 
     public RefreshToken createRefreshToken(UUID userId) {
         User user = userRepository.findById(userId)
@@ -32,7 +30,9 @@ public class RefreshTokenService {
 
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(user);
-        refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenDurationMs));
+        refreshToken.setExpiryDate(Instant.now().plusMillis(
+                jwtProperties.getRefreshToken().getExpiration()
+        ));
         refreshToken.setToken(UUID.randomUUID().toString());
 
         return refreshTokenRepository.save(refreshToken);
@@ -40,6 +40,23 @@ public class RefreshTokenService {
 
     public Optional<RefreshToken> findByToken(String token) {
         return refreshTokenRepository.findByTokenAndRevokedFalse(token);
+    }
+    
+    public Optional<RefreshToken> findByTokenIncludingRevoked(String token) {
+        return refreshTokenRepository.findByToken(token);
+    }
+
+    public boolean isRecentlyRevoked(RefreshToken token) {
+        if (!Boolean.TRUE.equals(token.getRevoked())) {
+            return false;
+        }
+        Instant revokedAt = token.getRevokedAt();
+        if (revokedAt == null) {
+            return false;
+        }
+        return revokedAt.isAfter(Instant.now().minusMillis(
+                jwtProperties.getRefreshToken().getReuseLeewayMs()
+        ));
     }
 
     public RefreshToken verifyExpiration(RefreshToken token) {

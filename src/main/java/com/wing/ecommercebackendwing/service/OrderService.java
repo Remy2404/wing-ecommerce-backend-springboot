@@ -160,13 +160,17 @@ public class OrderService {
         // Create delivery address from shipping request
         Address deliveryAddress = new Address();
         deliveryAddress.setUser(user);
+        deliveryAddress.setLabel("Order Delivery");
+        deliveryAddress.setFullName(request.getShippingAddress().getFullName());
+        deliveryAddress.setPhone(request.getShippingAddress().getPhone());
         deliveryAddress.setStreet(request.getShippingAddress().getStreet());
         deliveryAddress.setCity(request.getShippingAddress().getCity());
         deliveryAddress.setProvince(request.getShippingAddress().getState());
+        deliveryAddress.setCountry(request.getShippingAddress().getCountry());
         deliveryAddress.setPostalCode(request.getShippingAddress().getZipCode());
-        deliveryAddress.setLabel("Order Delivery");
         deliveryAddress.setIsDefault(false);
         deliveryAddress.setCreatedAt(Instant.now());
+        deliveryAddress.setUpdatedAt(Instant.now());
         Address savedAddress = addressRepository.save(deliveryAddress);
 
         // Create order

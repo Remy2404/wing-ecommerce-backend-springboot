@@ -170,8 +170,13 @@ public class EnhancedAuthService {
 
     @Transactional
     public AuthResponse refreshToken(String refreshTokenStr) {
-        RefreshToken refreshToken = refreshTokenService.findByToken(refreshTokenStr)
+        RefreshToken refreshToken = refreshTokenService.findByTokenIncludingRevoked(refreshTokenStr)
                 .orElseThrow(() -> new TokenRefreshException(refreshTokenStr, "Refresh token not found"));
+
+        if (Boolean.TRUE.equals(refreshToken.getRevoked())
+                && !refreshTokenService.isRecentlyRevoked(refreshToken)) {
+            throw new TokenRefreshException(refreshTokenStr, "Refresh token revoked. Please login again");
+        }
 
         refreshToken = refreshTokenService.verifyExpiration(refreshToken);
 
