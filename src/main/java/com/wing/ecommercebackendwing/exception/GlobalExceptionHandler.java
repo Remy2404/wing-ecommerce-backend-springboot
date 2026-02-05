@@ -127,6 +127,17 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(com.wing.ecommercebackendwing.exception.custom.TokenRefreshException.class)
+    public ResponseEntity<ErrorResponse> handleTokenRefreshException(com.wing.ecommercebackendwing.exception.custom.TokenRefreshException ex) {
+        log.error("Token refresh failed: {}", ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .success(false)
+                .error(ex.getMessage())
+                .code("TOKEN_REFRESH_FAILED")
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex) {
         log.error("Unexpected error: ", ex);

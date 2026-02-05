@@ -34,10 +34,12 @@ public class TwoFactorAuthService {
     }
 
     public String generateQRCodeUrl(String secret, String userEmail) {
+        com.warrenstrange.googleauth.GoogleAuthenticatorKey key = 
+            new com.warrenstrange.googleauth.GoogleAuthenticatorKey.Builder(secret).build();
         return GoogleAuthenticatorQRGenerator.getOtpAuthURL(
                 "Wing-Ecommerce",
                 userEmail,
-                googleAuthenticator.createCredentials(secret)
+                key
         );
     }
 

@@ -15,6 +15,7 @@ public class UserMapper {
                 .lastName(user.getLastName())
                 .role(user.getRole().name())
                 .avatar(user.getAvatar())
+                .twofaEnabled(user.getTwofaEnabled())
                 .build();
     }
 

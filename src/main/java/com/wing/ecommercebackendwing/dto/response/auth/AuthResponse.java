@@ -14,6 +14,8 @@ public class AuthResponse {
     @JsonIgnore // Refresh token is sent via HttpOnly cookie, not in response body
     private String refreshToken;
 
+    private String tempToken; // For 2FA verification
+
     private UserSummary user;
 
     @Data

@@ -107,11 +107,22 @@ public class EnhancedAuthService {
             throw new RuntimeException("Invalid email or password");
         }
 
+        // Check email verification
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+            throw new RuntimeException("EMAIL_NOT_VERIFIED");
+        }
+
         // Check if 2FA is enabled
         if (Boolean.TRUE.equals(user.getTwofaEnabled())) {
-            // Partial response - 2FA required, no token yet
             log.info("2FA required for user: {}", request.getEmail());
-            throw new RuntimeException("2FA_REQUIRED");
+            
+            // Generate temporary token (userId-based, 5 minutes)
+            String tempToken = jwtTokenProvider.generateTempToken(user.getId());
+            
+            // Return ONLY tempToken, no access/refresh tokens
+            return AuthResponse.builder()
+                    .tempToken(tempToken)
+                    .build();
         }
 
         // Successful login
@@ -119,8 +130,8 @@ public class EnhancedAuthService {
     }
 
     @Transactional
-    public AuthResponse verify2FAAndLogin(String email, int code) {
-        User user = userRepository.findByEmail(email)
+    public AuthResponse verify2FAAndLogin(UUID userId, int code) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (!Boolean.TRUE.equals(user.getTwofaEnabled())) {
@@ -129,7 +140,7 @@ public class EnhancedAuthService {
 
         boolean isValid = twoFactorAuthService.verify2FACode(user.getTwofaSecret(), code);
         if (!isValid) {
-            throw new RuntimeException("Invalid 2FA code");
+            throw new RuntimeException("INVALID_OTP");
         }
 
         return completeLogin(user);

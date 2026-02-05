@@ -47,14 +47,14 @@ public class AuthController {
     private long refreshTokenDurationMs;
 
     private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
-    private static final String REFRESH_TOKEN_COOKIE_PATH = "/api/auth";
+    private static final String REFRESH_TOKEN_COOKIE_PATH = "/api";
 
     private ResponseCookie createRefreshTokenCookie(String tokenValue, long maxAgeSeconds) {
         return ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, tokenValue)
                 .httpOnly(true)
                 .secure(cookieSecure)
                 .sameSite("Lax")
-                .path("/")
+                .path(REFRESH_TOKEN_COOKIE_PATH)
                 .maxAge(maxAgeSeconds)
                 .build();
     }
@@ -93,23 +93,30 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/login/2fa")
-    @Operation(summary = "Complete login with 2FA code")
-    public ResponseEntity<AuthResponse> loginWith2FA(
-            @RequestParam(name = "email") String email,
-            @RequestParam(name = "code") int code,
+    @PostMapping("/verify-2fa")
+    @Operation(summary = "Complete login with 2FA code using temporary token")
+    public ResponseEntity<AuthResponse> verify2FA(
+            @Valid @RequestBody Verify2FARequest request,
             HttpServletResponse httpResponse) {
-        AuthResponse response = authService.verify2FAAndLogin(email, code);
         
-        // Set refresh token as HttpOnly cookie
-        if (response.getRefreshToken() != null) {
-            long maxAgeSeconds = refreshTokenDurationMs / 1000;
-            ResponseCookie cookie = createRefreshTokenCookie(response.getRefreshToken(), maxAgeSeconds);
-            httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-            response.setRefreshToken(null);
+        try {
+         
+            UUID userId = jwtTokenProvider.getUserIdFromTempToken(request.getTempToken());
+
+            AuthResponse response = authService.verify2FAAndLogin(userId, Integer.parseInt(request.getOtp()));
+            
+            // Set refresh token as HttpOnly cookie
+            if (response.getRefreshToken() != null) {
+                long maxAgeSeconds = refreshTokenDurationMs / 1000;
+                ResponseCookie cookie = createRefreshTokenCookie(response.getRefreshToken(), maxAgeSeconds);
+                httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+                response.setRefreshToken(null);
+            }
+            
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            throw e;
         }
-        
-        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/refresh")
@@ -120,8 +127,13 @@ public class AuthController {
         @ApiResponse(responseCode = "401", description = "Invalid or expired refresh token")
     })
     public ResponseEntity<AuthResponse> refreshToken(
-            @CookieValue(name = "refreshToken") String refreshToken,
+            @CookieValue(name = "refreshToken", required = false) String refreshToken,
             HttpServletResponse httpResponse) {
+        
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new com.wing.ecommercebackendwing.exception.custom.TokenRefreshException("null", "Refresh token cookie is missing");
+        }
+        
         AuthResponse response = authService.refreshToken(refreshToken);
         
         // Set new refresh token as HttpOnly cookie
