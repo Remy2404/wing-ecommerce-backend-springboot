@@ -18,5 +18,6 @@ public class UpdateAddressRequest {
     private String state;
     private String postalCode;
     private String country;
-    private Boolean isDefault;
+    @Builder.Default
+    private Boolean isDefault = false;
 }

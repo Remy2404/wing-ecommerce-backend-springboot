@@ -7,10 +7,15 @@ import com.wing.ecommercebackendwing.model.entity.Address;
 public class AddressMapper {
 
     public static AddressResponse toResponse(Address address) {
+        return toResponse(address, false);
+    }
+
+    public static AddressResponse toResponse(Address address, boolean inUse) {
         return AddressResponse.builder()
                 .id(address.getId())
                 .userId(address.getUser().getId())
                 .label(address.getLabel())
+                .inUse(inUse)
                 .fullName(address.getFullName())
                 .phone(address.getPhone())
                 .street(address.getStreet())

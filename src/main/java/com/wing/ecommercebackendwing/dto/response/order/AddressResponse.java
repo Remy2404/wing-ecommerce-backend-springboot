@@ -13,6 +13,7 @@ public class AddressResponse {
     private UUID id;
     private UUID userId;
     private String label;
+    private Boolean inUse;
     private String fullName;
     private String phone;
     private String street;

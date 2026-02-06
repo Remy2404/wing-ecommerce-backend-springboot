@@ -3,6 +3,7 @@ package com.wing.ecommercebackendwing.service;
 import com.wing.ecommercebackendwing.dto.mapper.UserMapper;
 import com.wing.ecommercebackendwing.dto.request.auth.*;
 import com.wing.ecommercebackendwing.dto.response.auth.AuthResponse;
+import com.wing.ecommercebackendwing.exception.custom.BadRequestException;
 import com.wing.ecommercebackendwing.exception.custom.TokenRefreshException;
 import com.wing.ecommercebackendwing.model.entity.RefreshToken;
 import com.wing.ecommercebackendwing.model.entity.User;
@@ -74,18 +75,16 @@ public class EnhancedAuthService {
         
         User savedUser = userRepository.save(user);
 
-        // Send verification email
+        // Registration is only successful when verification email is sent.
+        // If email delivery fails, throw and rollback the transaction.
         try {
-            emailService.sendVerificationEmail(user.getEmail(), user.getEmailVerificationToken());
+            emailService.sendVerificationEmail(savedUser.getEmail(), savedUser.getEmailVerificationToken());
         } catch (Exception e) {
-            log.error("Failed to send verification email to: {}", user.getEmail(), e);
+            log.error("Failed to send verification email to: {}", savedUser.getEmail(), e);
+            throw new BadRequestException("Registration failed: could not send verification email. Please try again.");
         }
 
-        // Generate tokens (user can use the app but with limited access until verified)
-        String accessToken = jwtTokenProvider.generateToken(savedUser);
-
         return AuthResponse.builder()
-                .token(accessToken)
                 .user(buildUserSummary(savedUser))
                 .build();
     }
@@ -211,6 +210,41 @@ public class EnhancedAuthService {
         userRepository.save(user);
 
         log.info("Email verified for user: {}", user.getEmail());
+    }
+
+    @Transactional
+    public AuthResponse verifyEmailAndLogin(String token) {
+        User user = userRepository.findByEmailVerificationToken(token)
+                .orElseThrow(() -> new RuntimeException("Invalid verification token"));
+
+        if (user.getEmailVerificationSentAt().isBefore(Instant.now().minus(24, ChronoUnit.HOURS))) {
+            throw new RuntimeException("Verification token has expired");
+        }
+
+        user.setEmailVerified(true);
+        user.setEmailVerificationToken(null);
+        user.setEmailVerificationSentAt(null);
+        userRepository.save(user);
+
+        log.info("Email verified for user: {}", user.getEmail());
+        return completeLogin(user);
+    }
+
+    @Transactional
+    public void resendVerificationByToken(String token) {
+        User user = userRepository.findByEmailVerificationToken(token)
+                .orElseThrow(() -> new RuntimeException("Invalid verification token"));
+
+        if (Boolean.TRUE.equals(user.getEmailVerified())) {
+            throw new RuntimeException("Email is already verified");
+        }
+
+        user.setEmailVerificationToken(UUID.randomUUID().toString());
+        user.setEmailVerificationSentAt(Instant.now());
+        userRepository.save(user);
+
+        emailService.sendVerificationEmail(user.getEmail(), user.getEmailVerificationToken());
+        log.info("Verification email re-sent to: {}", user.getEmail());
     }
 
     @Transactional

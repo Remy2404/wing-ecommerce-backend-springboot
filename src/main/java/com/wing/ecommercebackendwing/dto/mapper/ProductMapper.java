@@ -14,6 +14,7 @@ public class ProductMapper {
     public static ProductResponse toResponse(Product product) {
         return ProductResponse.builder()
                 .id(product.getId())
+                .merchantId(product.getMerchant() != null ? product.getMerchant().getId() : null)
                 .name(product.getName())
                 .slug(product.getSlug())
                 .price(product.getPrice())

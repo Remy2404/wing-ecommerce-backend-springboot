@@ -8,6 +8,7 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
@@ -129,13 +130,24 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(com.wing.ecommercebackendwing.exception.custom.TokenRefreshException.class)
     public ResponseEntity<ErrorResponse> handleTokenRefreshException(com.wing.ecommercebackendwing.exception.custom.TokenRefreshException ex) {
-        log.error("Token refresh failed: {}", ex.getMessage());
+        log.warn("Token refresh failed: {}", ex.getMessage());
         ErrorResponse error = ErrorResponse.builder()
                 .success(false)
                 .error(ex.getMessage())
                 .code("TOKEN_REFRESH_FAILED")
                 .build();
         return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.error("Data integrity violation: {}", ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .success(false)
+                .error("Request violates data constraints. The resource may be referenced by other records.")
+                .code("DATA_INTEGRITY_VIOLATION")
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(Exception.class)

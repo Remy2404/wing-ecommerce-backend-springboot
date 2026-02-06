@@ -7,6 +7,7 @@ import lombok.Data;
 @Builder
 public class PaymentVerificationResponse {
     private boolean isPaid;
+    private boolean expired;
     private Double paidAmount;
     private String currency;
     private String message;

@@ -10,6 +10,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
 import java.util.List;
 
 @Data
@@ -26,6 +27,9 @@ public class CreateOrderRequest {
     @NotNull(message = "Shipping address is required")
     @Valid
     private ShippingAddressRequest shippingAddress;
+
+    @Schema(description = "Existing saved address id to use for delivery (optional)")
+    private UUID shippingAddressId;
 
     @Schema(description = "Payment method", example = "KHQR", allowableValues = {"KHQR", "CASH_ON_DELIVERY"})
     @NotBlank(message = "Payment method is required")

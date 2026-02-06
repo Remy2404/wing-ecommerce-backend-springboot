@@ -30,6 +30,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class PaymentService {
+    private static final long MAX_KHQR_EXPIRATION_SECONDS = 10 * 60;
 
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
@@ -39,6 +40,9 @@ public class PaymentService {
 
     @org.springframework.beans.factory.annotation.Value("${khqr.api-token}")
     private String bakongApiToken;
+
+    @org.springframework.beans.factory.annotation.Value("${khqr.expiration-seconds:600}")
+    private long khqrExpirationSeconds;
 
     @Transactional
     public KHQRResultDto generateKHQR(UUID orderId, UUID userId) {
@@ -89,8 +93,8 @@ public class PaymentService {
         payment.setAmount(order.getTotalAmount());
         payment.setMd5(md5);
         
-        // Set QR code expiration (30 minutes from now)
-        payment.setExpiresAt(Instant.now().plusSeconds(30 * 60));
+        long ttlSeconds = Math.min(Math.max(khqrExpirationSeconds, 1), MAX_KHQR_EXPIRATION_SECONDS);
+        payment.setExpiresAt(Instant.now().plusSeconds(ttlSeconds));
         
         paymentRepository.save(payment);
 
@@ -128,18 +132,31 @@ public class PaymentService {
         if (payment.getStatus() == PaymentStatus.COMPLETED) {
             return PaymentVerificationResponse.builder()
                     .isPaid(true)
+                    .expired(false)
                     .paidAmount(payment.getAmount().doubleValue())
                     .currency("USD")
                     .message("Payment already completed")
                     .build();
         }
 
+        if (payment.getStatus() == PaymentStatus.EXPIRED) {
+            return PaymentVerificationResponse.builder()
+                    .isPaid(false)
+                    .expired(true)
+                    .message("Transaction timed out. Please generate a new QR code.")
+                    .build();
+        }
+
         // Check if QR code has expired
         if (payment.getExpiresAt() != null && Instant.now().isAfter(payment.getExpiresAt())) {
             log.warn("QR code expired for payment MD5: {}", normalizedMd5);
+            payment.setStatus(PaymentStatus.EXPIRED);
+            payment.setGatewayResponse("KHQR timeout reached");
+            paymentRepository.save(payment);
             return PaymentVerificationResponse.builder()
                     .isPaid(false)
-                    .message("QR code has expired. Please generate a new one.")
+                    .expired(true)
+                    .message("Transaction timed out. Please generate a new QR code.")
                     .build();
         }
 
@@ -208,6 +225,7 @@ public class PaymentService {
                     
                     return PaymentVerificationResponse.builder()
                             .isPaid(true)
+                            .expired(false)
                             .paidAmount(amount)
                             .currency(currency)
                             .message("Success")
@@ -217,12 +235,14 @@ public class PaymentService {
                     log.debug("Payment verification pending for transaction {}: {}", transactionId, errorMsg);
                     return PaymentVerificationResponse.builder()
                             .isPaid(false)
+                            .expired(false)
                             .message(errorMsg)
                             .build();
                 }
             } else {
                 return PaymentVerificationResponse.builder()
                         .isPaid(false)
+                        .expired(false)
                         .message("API Error: " + response.getStatusCode())
                         .build();
             }
@@ -230,6 +250,7 @@ public class PaymentService {
             log.error("Error verifying payment for transaction {}: {}", transactionId, e.getMessage());
             return PaymentVerificationResponse.builder()
                     .isPaid(false)
+                    .expired(false)
                     .message("Error: " + e.getMessage())
                     .build();
         }
@@ -240,6 +261,7 @@ public class PaymentService {
         if (transactionId == null) {
             return PaymentVerificationResponse.builder()
                     .isPaid(false)
+                    .expired(false)
                     .message("Transaction ID is null")
                     .build();
         }

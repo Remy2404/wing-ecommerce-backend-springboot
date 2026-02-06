@@ -35,5 +35,6 @@ public class CreateAddressRequest {
     @NotBlank
     private String country;
 
+    @Builder.Default
     private Boolean isDefault = false;
 }

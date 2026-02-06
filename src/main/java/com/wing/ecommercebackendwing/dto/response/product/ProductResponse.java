@@ -10,6 +10,7 @@ import java.util.UUID;
 @Builder
 public class ProductResponse {
     private UUID id;
+    private UUID merchantId;
     private String name;
     private String slug;
     private BigDecimal price;

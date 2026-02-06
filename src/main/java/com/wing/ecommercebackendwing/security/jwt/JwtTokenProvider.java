@@ -142,12 +142,12 @@ public class JwtTokenProvider {
      */
     public String generateTempToken(UUID userId) {
         Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + 300000); // 5 minutes
+        Date expiryDate = new Date(now.getTime() + 300000); 
         
         return Jwts.builder()
                 .setSubject(userId.toString())
                 .claim("type", "2FA_TEMP")
-                .setIssuedAt(now)
+                .setIssuedAt(now)   
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), Jwts.SIG.HS256)
                 .compact();

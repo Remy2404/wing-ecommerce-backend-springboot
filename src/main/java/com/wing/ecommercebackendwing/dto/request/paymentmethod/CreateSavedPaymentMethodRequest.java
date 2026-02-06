@@ -1,7 +1,6 @@
 package com.wing.ecommercebackendwing.dto.request.paymentmethod;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,5 +25,6 @@ public class CreateSavedPaymentMethodRequest {
     @NotBlank
     private String providerToken;
 
+    @Builder.Default
     private Boolean isDefault = false;
 }

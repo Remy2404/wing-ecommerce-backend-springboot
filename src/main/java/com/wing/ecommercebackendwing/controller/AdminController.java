@@ -54,4 +54,10 @@ public class AdminController {
                 .message("User account revoked and all sessions terminated")
                 .build());
     }
+
+    @PostMapping("/maintenance/addresses/archive-order-delivery")
+    @Operation(summary = "One-time cleanup: archive legacy Order Delivery addresses linked to orders")
+    public ResponseEntity<?> archiveLegacyOrderDeliveryAddresses() {
+        return ResponseEntity.ok(adminService.archiveLegacyOrderDeliveryAddresses());
+    }
 }

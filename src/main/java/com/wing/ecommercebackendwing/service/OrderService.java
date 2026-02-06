@@ -3,6 +3,8 @@ package com.wing.ecommercebackendwing.service;
 import com.wing.ecommercebackendwing.dto.mapper.OrderMapper;
 import com.wing.ecommercebackendwing.dto.request.order.CreateOrderRequest;
 import com.wing.ecommercebackendwing.dto.response.order.OrderResponse;
+import com.wing.ecommercebackendwing.exception.custom.BadRequestException;
+import com.wing.ecommercebackendwing.exception.custom.ResourceNotFoundException;
 import com.wing.ecommercebackendwing.model.entity.*;
 import com.wing.ecommercebackendwing.model.enums.OrderStatus;
 import com.wing.ecommercebackendwing.repository.*;
@@ -41,7 +43,7 @@ public class OrderService {
     @Transactional
     public OrderResponse createOrder(UUID userId, CreateOrderRequest request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         List<OrderItem> orderItems = new ArrayList<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -54,18 +56,18 @@ public class OrderService {
             // Processing items from request (Buy Now flow)
             for (com.wing.ecommercebackendwing.dto.request.order.OrderItemRequest itemReq : request.getItems()) {
                 Product product = productRepository.findById(itemReq.getProductId())
-                        .orElseThrow(() -> new RuntimeException("Product not found: " + itemReq.getProductId()));
+                        .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + itemReq.getProductId()));
 
                 ProductVariant variant = null;
                 if (itemReq.getVariantId() != null) {
                     variant = productVariantRepository.findById(itemReq.getVariantId())
-                            .orElseThrow(() -> new RuntimeException("Variant not found: " + itemReq.getVariantId()));
+                            .orElseThrow(() -> new ResourceNotFoundException("Variant not found: " + itemReq.getVariantId()));
                 }
 
                 // Check stock
                 int stock = (variant != null) ? variant.getStock() : product.getStockQuantity();
                 if (stock < itemReq.getQuantity()) {
-                    throw new RuntimeException("Insufficient stock for product " + product.getName());
+                    throw new BadRequestException("Insufficient stock for product " + product.getName());
                 }
 
                 // Decrement stock
@@ -84,7 +86,7 @@ public class OrderService {
                 if (merchant == null) {
                     merchant = product.getMerchant();
                 } else if (!merchant.getId().equals(product.getMerchant().getId())) {
-                    throw new RuntimeException("All items in an order must belong to the same merchant");
+                    throw new BadRequestException("All items in an order must belong to the same merchant");
                 }
 
                 OrderItem orderItem = new OrderItem();
@@ -113,7 +115,7 @@ public class OrderService {
                 // Check stock
                 int stock = (variant != null) ? variant.getStock() : product.getStockQuantity();
                 if (stock < cartItem.getQuantity()) {
-                    throw new RuntimeException("Insufficient stock for product " + product.getName() + " in your cart");
+                    throw new BadRequestException("Insufficient stock for product " + product.getName() + " in your cart");
                 }
 
                 // Decrement stock
@@ -129,7 +131,7 @@ public class OrderService {
                 if (merchant == null) {
                     merchant = product.getMerchant();
                 } else if (!merchant.getId().equals(product.getMerchant().getId())) {
-                    throw new RuntimeException("Your cart contains items from multiple merchants. Please checkout separately per merchant.");
+                    throw new BadRequestException("Your cart contains items from multiple merchants. Please checkout separately per merchant.");
                 }
 
                 OrderItem orderItem = new OrderItem();
@@ -150,28 +152,41 @@ public class OrderService {
                 totalAmount = totalAmount.add(itemSubtotal);
             }
         } else {
-            throw new RuntimeException("No items provided and no cart found");
+            throw new BadRequestException("No items provided and no cart found");
         }
 
         if (merchant == null) {
-            throw new RuntimeException("Product merchant not found");
+            throw new BadRequestException("Product merchant not found");
         }
 
-        // Create delivery address from shipping request
-        Address deliveryAddress = new Address();
-        deliveryAddress.setUser(user);
-        deliveryAddress.setLabel("Order Delivery");
-        deliveryAddress.setFullName(request.getShippingAddress().getFullName());
-        deliveryAddress.setPhone(request.getShippingAddress().getPhone());
-        deliveryAddress.setStreet(request.getShippingAddress().getStreet());
-        deliveryAddress.setCity(request.getShippingAddress().getCity());
-        deliveryAddress.setProvince(request.getShippingAddress().getState());
-        deliveryAddress.setCountry(request.getShippingAddress().getCountry());
-        deliveryAddress.setPostalCode(request.getShippingAddress().getZipCode());
-        deliveryAddress.setIsDefault(false);
-        deliveryAddress.setCreatedAt(Instant.now());
-        deliveryAddress.setUpdatedAt(Instant.now());
-        Address savedAddress = addressRepository.save(deliveryAddress);
+        Address savedAddress;
+        if (request.getShippingAddressId() != null) {
+            Address existingAddress = addressRepository.findById(request.getShippingAddressId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Shipping address not found"));
+            if (!existingAddress.getUser().getId().equals(userId)) {
+                throw new BadRequestException("Shipping address does not belong to the current user");
+            }
+            savedAddress = existingAddress;
+        } else {
+            if (request.getShippingAddress() == null) {
+                throw new BadRequestException("Shipping address is required");
+            }
+            // Fallback for legacy clients that do not pass shippingAddressId.
+            Address deliveryAddress = new Address();
+            deliveryAddress.setUser(user);
+            deliveryAddress.setLabel("Order Delivery");
+            deliveryAddress.setFullName(request.getShippingAddress().getFullName());
+            deliveryAddress.setPhone(request.getShippingAddress().getPhone());
+            deliveryAddress.setStreet(request.getShippingAddress().getStreet());
+            deliveryAddress.setCity(request.getShippingAddress().getCity());
+            deliveryAddress.setProvince(request.getShippingAddress().getState());
+            deliveryAddress.setCountry(request.getShippingAddress().getCountry());
+            deliveryAddress.setPostalCode(request.getShippingAddress().getZipCode());
+            deliveryAddress.setIsDefault(false);
+            deliveryAddress.setCreatedAt(Instant.now());
+            deliveryAddress.setUpdatedAt(Instant.now());
+            savedAddress = addressRepository.save(deliveryAddress);
+        }
 
         // Create order
         Order order = new Order();

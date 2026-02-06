@@ -21,6 +21,11 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Optional<Order> findFirstByOrderNumberStartingWithOrderByOrderNumberDesc(String prefix);
     Page<Order> findByMerchantId(UUID merchantId, Pageable pageable);
 
+    boolean existsByDeliveryAddressId(UUID deliveryAddressId);
+
+    @Query("select distinct o.deliveryAddress.id from Order o where o.user.id = :userId")
+    List<UUID> findDeliveryAddressIdsByUserId(UUID userId);
+
 
     @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o")
     BigDecimal sumTotalAmount();

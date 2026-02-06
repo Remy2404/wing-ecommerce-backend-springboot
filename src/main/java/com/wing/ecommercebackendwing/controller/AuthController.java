@@ -9,6 +9,7 @@ import com.wing.ecommercebackendwing.config.JwtProperties;
 import com.wing.ecommercebackendwing.security.CustomUserDetails;
 import com.wing.ecommercebackendwing.security.jwt.JwtTokenProvider;
 import com.wing.ecommercebackendwing.security.jwt.TokenBlacklistService;
+import com.wing.ecommercebackendwing.exception.custom.TokenRefreshException;
 import com.wing.ecommercebackendwing.service.EnhancedAuthService;
 import com.wing.ecommercebackendwing.service.TwoFactorAuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -56,6 +57,11 @@ public class AuthController {
                 .path(REFRESH_TOKEN_COOKIE_PATH)
                 .maxAge(maxAgeSeconds)
                 .build();
+    }
+
+    private void clearRefreshTokenCookie(HttpServletResponse httpResponse) {
+        ResponseCookie expiredCookie = createRefreshTokenCookie("", 0);
+        httpResponse.addHeader(HttpHeaders.SET_COOKIE, expiredCookie.toString());
     }
 
     @PostMapping("/register")
@@ -130,20 +136,27 @@ public class AuthController {
             HttpServletResponse httpResponse) {
         
         if (refreshToken == null || refreshToken.isBlank()) {
-            throw new com.wing.ecommercebackendwing.exception.custom.TokenRefreshException("null", "Refresh token cookie is missing");
+            clearRefreshTokenCookie(httpResponse);
+            throw new TokenRefreshException("null", "Refresh token cookie is missing");
         }
-        
-        AuthResponse response = authService.refreshToken(refreshToken);
-        
-        // Set new refresh token as HttpOnly cookie
-        if (response.getRefreshToken() != null) {
-            long maxAgeSeconds = jwtProperties.getRefreshToken().getExpiration() / 1000;
-            ResponseCookie cookie = createRefreshTokenCookie(response.getRefreshToken(), maxAgeSeconds);
-            httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-            response.setRefreshToken(null);
+
+        try {
+            AuthResponse response = authService.refreshToken(refreshToken);
+
+            // Set new refresh token as HttpOnly cookie
+            if (response.getRefreshToken() != null) {
+                long maxAgeSeconds = jwtProperties.getRefreshToken().getExpiration() / 1000;
+                ResponseCookie cookie = createRefreshTokenCookie(response.getRefreshToken(), maxAgeSeconds);
+                httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+                response.setRefreshToken(null);
+            }
+
+            return ResponseEntity.ok(response);
+        } catch (TokenRefreshException ex) {
+            // Ensure browser drops stale/invalid refresh cookie to prevent repeated refresh loops.
+            clearRefreshTokenCookie(httpResponse);
+            throw ex;
         }
-        
-        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/verify-email")
@@ -158,6 +171,33 @@ public class AuthController {
         return ResponseEntity.ok(MessageResponse.builder()
                 .success(true)
                 .message("Email verified successfully")
+                .build());
+    }
+
+    @PostMapping("/verify-email/auto-login")
+    @Operation(summary = "Verify email address and create authenticated session")
+    public ResponseEntity<AuthResponse> verifyEmailAndAutoLogin(
+            @Valid @RequestBody VerifyEmailRequest request,
+            HttpServletResponse httpResponse) {
+        AuthResponse response = authService.verifyEmailAndLogin(request.getToken());
+
+        if (response.getRefreshToken() != null) {
+            long maxAgeSeconds = jwtProperties.getRefreshToken().getExpiration() / 1000;
+            ResponseCookie cookie = createRefreshTokenCookie(response.getRefreshToken(), maxAgeSeconds);
+            httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+            response.setRefreshToken(null);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/resend-verification/by-token")
+    @Operation(summary = "Resend verification email using the current verification token")
+    public ResponseEntity<MessageResponse> resendVerificationByToken(@Valid @RequestBody VerifyEmailRequest request) {
+        authService.resendVerificationByToken(request.getToken());
+        return ResponseEntity.ok(MessageResponse.builder()
+                .success(true)
+                .message("Verification email re-sent successfully")
                 .build());
     }
 
