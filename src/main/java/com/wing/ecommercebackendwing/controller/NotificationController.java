@@ -1,5 +1,7 @@
 package com.wing.ecommercebackendwing.controller;
 
+import com.wing.ecommercebackendwing.dto.mapper.NotificationMapper;
+import com.wing.ecommercebackendwing.dto.response.common.NotificationResponse;
 import com.wing.ecommercebackendwing.model.entity.Notification;
 import com.wing.ecommercebackendwing.security.CustomUserDetails;
 import com.wing.ecommercebackendwing.service.NotificationService;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -25,8 +28,11 @@ public class NotificationController {
 
     @GetMapping
     @Operation(summary = "Get current user's unread notifications")
-    public ResponseEntity<List<Notification>> getNotifications(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        return ResponseEntity.ok(notificationService.getUserNotifications(userDetails.getUserId()));
+    public ResponseEntity<List<NotificationResponse>> getNotifications(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        List<Notification> notifications = notificationService.getUserNotifications(userDetails.getUserId());
+        return ResponseEntity.ok(
+                notifications.stream().map(NotificationMapper::toResponse).collect(Collectors.toList())
+        );
     }
 
     @PostMapping("/read")

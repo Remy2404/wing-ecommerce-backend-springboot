@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -18,6 +19,11 @@ public class DeliveryService {
 
     private final DeliveryRepository deliveryRepository;
     private final UserRepository userRepository;
+
+    @Transactional(readOnly = true)
+    public Optional<Delivery> findByOrderId(UUID orderId) {
+        return deliveryRepository.findByOrderId(orderId);
+    }
 
     @Transactional
     public Delivery assignDriver(UUID deliveryId, UUID driverId) {

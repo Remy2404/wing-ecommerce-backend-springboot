@@ -1,5 +1,7 @@
 package com.wing.ecommercebackendwing.controller;
 
+import com.wing.ecommercebackendwing.dto.mapper.DeliveryMapper;
+import com.wing.ecommercebackendwing.dto.response.common.DeliveryResponse;
 import com.wing.ecommercebackendwing.model.enums.DeliveryStatus;
 import com.wing.ecommercebackendwing.service.DeliveryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,6 +22,16 @@ import java.util.UUID;
 public class DeliveryController {
 
     private final DeliveryService deliveryService;
+
+    @GetMapping("/order/{orderId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get delivery record by order ID (Admin only)")
+    public ResponseEntity<DeliveryResponse> getByOrderId(@PathVariable(name = "orderId") UUID orderId) {
+        return deliveryService.findByOrderId(orderId)
+                .map(DeliveryMapper::toResponse)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
 
     @PostMapping("/{deliveryId}/assign/{driverId}")
     @PreAuthorize("hasRole('ADMIN')")
