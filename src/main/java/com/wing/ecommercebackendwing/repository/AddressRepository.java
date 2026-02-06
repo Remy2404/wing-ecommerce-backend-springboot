@@ -14,10 +14,8 @@ public interface AddressRepository extends JpaRepository<Address, UUID> {
     List<Address> findByUserId(UUID userId);
     Optional<Address> findByUserIdAndIsDefaultTrue(UUID userId);
 
-    @Query("""
-            select a from Address a
-            where a.id in (select o.deliveryAddress.id from Order o)
-              and lower(coalesce(a.label, '')) = lower(:label)
-            """)
+    @Query("select a from Address a " +
+            "where exists (select 1 from Order o where o.deliveryAddress = a) " +
+            "  and lower(coalesce(a.label, '')) = lower(:label))")
     List<Address> findOrderLinkedAddressesByLabel(String label);
 }
