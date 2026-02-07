@@ -249,8 +249,18 @@ public class EnhancedAuthService {
 
     @Transactional
     public void initiatePasswordReset(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (email == null || email.trim().isEmpty()) {
+            throw new BadRequestException("Email is required");
+        }
+
+        User user = userRepository.findByEmail(email.trim())
+                .orElse(null);
+
+        // Security: don't leak whether an email exists
+        if (user == null) {
+            log.info("Password reset requested for non-existent email: {}", email);
+            return;
+        }
 
         String resetToken = UUID.randomUUID().toString();
         user.setPasswordResetToken(resetToken);
@@ -263,17 +273,22 @@ public class EnhancedAuthService {
 
     @Transactional
     public void resetPasswordWithToken(String token, String newPassword) {
-        User user = userRepository.findByPasswordResetToken(token)
-                .orElseThrow(() -> new RuntimeException("Invalid reset token"));
+        String normalizedToken = normalizeResetToken(token);
+        if (normalizedToken == null || normalizedToken.isEmpty()) {
+            throw new BadRequestException("Token is required");
+        }
 
-        if (user.getPasswordResetTokenExpiry().isBefore(Instant.now())) {
-            throw new RuntimeException("Reset token has expired");
+        User user = userRepository.findByPasswordResetToken(normalizedToken)
+                .orElseThrow(() -> new BadRequestException("Invalid reset token"));
+
+        if (user.getPasswordResetTokenExpiry() == null || user.getPasswordResetTokenExpiry().isBefore(Instant.now())) {
+            throw new BadRequestException("Reset token has expired");
         }
 
         // Validate new password
         PasswordValidator.ValidationResult validation = PasswordValidator.validate(newPassword);
         if (!validation.isValid()) {
-            throw new RuntimeException(validation.getMessage());
+            throw new BadRequestException(validation.getMessage());
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
@@ -285,6 +300,30 @@ public class EnhancedAuthService {
         refreshTokenService.revokeAllUserTokens(user.getId());
 
         log.info("Password reset completed and all sessions revoked for user: {}", user.getEmail());
+    }
+
+    private String normalizeResetToken(String token) {
+        if (token == null) return null;
+
+        String t = token.trim();
+        if (t.isEmpty()) return "";
+
+        // Sometimes clients accidentally send the full URL or query segment.
+        // Accept either `.../reset-password?token=...` or `token=...`.
+        int tokenIndex = t.indexOf("token=");
+        if (tokenIndex >= 0) {
+            t = t.substring(tokenIndex + "token=".length());
+            int ampIndex = t.indexOf('&');
+            if (ampIndex >= 0) t = t.substring(0, ampIndex);
+            t = t.trim();
+        }
+
+        // Strip accidental wrapping quotes
+        if (t.length() >= 2 && t.startsWith("\"") && t.endsWith("\"")) {
+            t = t.substring(1, t.length() - 1).trim();
+        }
+
+        return t;
     }
 
     @Transactional
