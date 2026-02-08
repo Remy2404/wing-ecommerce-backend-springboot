@@ -2,6 +2,7 @@ package com.wing.ecommercebackendwing.model.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -31,6 +32,7 @@ public class PromotionUsage {
     @Column(name = "discount_amount", precision = 10, scale = 2, nullable = false)
     private BigDecimal discountAmount;
 
+    @CreationTimestamp
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 }

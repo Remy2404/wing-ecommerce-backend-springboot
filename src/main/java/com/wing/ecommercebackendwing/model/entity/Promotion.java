@@ -2,6 +2,7 @@ package com.wing.ecommercebackendwing.model.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -22,6 +23,7 @@ public class Promotion {
     @Column(nullable = false, length = 255)
     private String name;
 
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @Column(nullable = false, length = 50)
@@ -54,12 +56,13 @@ public class Promotion {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
-    @Column(name = "applicable_categories")
+    @Column(name = "applicable_categories", columnDefinition = "TEXT")
     private String applicableCategories;
 
-    @Column(name = "applicable_merchants")
+    @Column(name = "applicable_merchants", columnDefinition = "TEXT")
     private String applicableMerchants;
 
+    @CreationTimestamp
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 }
