@@ -172,8 +172,7 @@ public class EnhancedAuthService {
         RefreshToken refreshToken = refreshTokenService.findByTokenIncludingRevoked(refreshTokenStr)
                 .orElseThrow(() -> new TokenRefreshException(refreshTokenStr, "Refresh token not found"));
 
-        if (Boolean.TRUE.equals(refreshToken.getRevoked())
-                && !refreshTokenService.isRecentlyRevoked(refreshToken)) {
+        if (Boolean.TRUE.equals(refreshToken.getRevoked())) {
             throw new TokenRefreshException(refreshTokenStr, "Refresh token revoked. Please login again");
         }
 
@@ -181,8 +180,11 @@ public class EnhancedAuthService {
 
         User user = refreshToken.getUser();
 
-        // Revoke the used refresh token and create a new one
-        refreshTokenService.revokeToken(refreshTokenStr);
+        // One-time rotation: only a single in-flight request can revoke+rotate successfully.
+        if (refreshTokenService.revokeIfActive(refreshTokenStr) == 0) {
+            throw new TokenRefreshException(refreshTokenStr, "Refresh token already used. Please login again");
+        }
+
         RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getId());
 
         String newAccessToken = jwtTokenProvider.generateToken(user);

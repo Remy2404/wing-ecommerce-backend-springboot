@@ -9,6 +9,7 @@ import com.wing.ecommercebackendwing.model.entity.*;
 import com.wing.ecommercebackendwing.model.enums.OrderStatus;
 import com.wing.ecommercebackendwing.repository.*;
 import com.wing.ecommercebackendwing.util.OrderNumberGenerator;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -20,6 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 
 import java.util.*;
 import com.wing.ecommercebackendwing.model.enums.UserRole;
@@ -28,6 +32,17 @@ import com.wing.ecommercebackendwing.model.enums.UserRole;
 @RequiredArgsConstructor
 @Slf4j
 public class OrderService {
+
+    private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_STATUS_TRANSITIONS = Map.of(
+            OrderStatus.PENDING, Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED, OrderStatus.PAID),
+            OrderStatus.PAID, Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED),
+            OrderStatus.CONFIRMED, Set.of(OrderStatus.PREPARING, OrderStatus.CANCELLED),
+            OrderStatus.PREPARING, Set.of(OrderStatus.READY, OrderStatus.CANCELLED),
+            OrderStatus.READY, Set.of(OrderStatus.DELIVERING, OrderStatus.CANCELLED),
+            OrderStatus.DELIVERING, Set.of(OrderStatus.DELIVERED),
+            OrderStatus.DELIVERED, Collections.emptySet(),
+            OrderStatus.CANCELLED, Collections.emptySet()
+    );
 
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
@@ -39,9 +54,55 @@ public class OrderService {
     private final TaxService taxService;
     private final DeliveryFeeService deliveryFeeService;
     private final DiscountService discountService;
+    private final OrderIdempotencyRecordRepository orderIdempotencyRecordRepository;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public OrderResponse createOrder(UUID userId, CreateOrderRequest request) {
+        return createOrder(userId, request, null);
+    }
+
+    @Transactional
+    public OrderResponse createOrder(UUID userId, CreateOrderRequest request, String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return OrderMapper.toResponse(createOrderInternal(userId, request));
+        }
+
+        String normalizedKey = idempotencyKey.trim();
+        String requestHash = buildRequestHash(request);
+        Optional<OrderIdempotencyRecord> existing = orderIdempotencyRecordRepository
+                .findByUserIdAndIdempotencyKey(userId, normalizedKey);
+
+        if (existing.isPresent()) {
+            OrderIdempotencyRecord record = existing.get();
+            if (!record.getRequestHash().equals(requestHash)) {
+                throw new BadRequestException("Idempotency-Key already used with different payload");
+            }
+            if (record.getOrder() != null) {
+                return OrderMapper.toResponse(record.getOrder());
+            }
+            throw new BadRequestException("Request with this Idempotency-Key is already in progress");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Instant now = Instant.now();
+        OrderIdempotencyRecord record = new OrderIdempotencyRecord();
+        record.setUser(user);
+        record.setIdempotencyKey(normalizedKey);
+        record.setRequestHash(requestHash);
+        record.setCreatedAt(now);
+        record.setUpdatedAt(now);
+        orderIdempotencyRecordRepository.save(record);
+
+        Order createdOrder = createOrderInternal(userId, request);
+        record.setOrder(createdOrder);
+        record.setUpdatedAt(Instant.now());
+        orderIdempotencyRecordRepository.save(record);
+        return OrderMapper.toResponse(createdOrder);
+    }
+
+    private Order createOrderInternal(UUID userId, CreateOrderRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -62,21 +123,19 @@ public class OrderService {
                 if (itemReq.getVariantId() != null) {
                     variant = productVariantRepository.findById(itemReq.getVariantId())
                             .orElseThrow(() -> new ResourceNotFoundException("Variant not found: " + itemReq.getVariantId()));
+                    if (!variant.getProduct().getId().equals(product.getId())) {
+                        throw new BadRequestException("Variant does not belong to the specified product");
+                    }
                 }
 
-                // Check stock
-                int stock = (variant != null) ? variant.getStock() : product.getStockQuantity();
-                if (stock < itemReq.getQuantity()) {
-                    throw new BadRequestException("Insufficient stock for product " + product.getName());
-                }
-
-                // Decrement stock
+                int updatedRows;
                 if (variant != null) {
-                    variant.setStock(variant.getStock() - itemReq.getQuantity());
-                    productVariantRepository.save(variant);
+                    updatedRows = productVariantRepository.decrementStockIfAvailable(variant.getId(), itemReq.getQuantity());
                 } else {
-                    product.setStockQuantity(product.getStockQuantity() - itemReq.getQuantity());
-                    productRepository.save(product);
+                    updatedRows = productRepository.decrementStockIfAvailable(product.getId(), itemReq.getQuantity());
+                }
+                if (updatedRows == 0) {
+                    throw new BadRequestException("Insufficient stock for product " + product.getName());
                 }
 
                 // Price
@@ -112,19 +171,14 @@ public class OrderService {
                 Product product = cartItem.getProduct();
                 ProductVariant variant = cartItem.getVariant();
 
-                // Check stock
-                int stock = (variant != null) ? variant.getStock() : product.getStockQuantity();
-                if (stock < cartItem.getQuantity()) {
-                    throw new BadRequestException("Insufficient stock for product " + product.getName() + " in your cart");
-                }
-
-                // Decrement stock
+                int updatedRows;
                 if (variant != null) {
-                    variant.setStock(variant.getStock() - cartItem.getQuantity());
-                    productVariantRepository.save(variant);
+                    updatedRows = productVariantRepository.decrementStockIfAvailable(variant.getId(), cartItem.getQuantity());
                 } else {
-                    product.setStockQuantity(product.getStockQuantity() - cartItem.getQuantity());
-                    productRepository.save(product);
+                    updatedRows = productRepository.decrementStockIfAvailable(product.getId(), cartItem.getQuantity());
+                }
+                if (updatedRows == 0) {
+                    throw new BadRequestException("Insufficient stock for product " + product.getName() + " in your cart");
                 }
 
                 // Merchant Validation
@@ -239,7 +293,18 @@ public class OrderService {
         }
 
         log.info("Created order {} for user {}", savedOrder.getOrderNumber(), userId);
-        return OrderMapper.toResponse(savedOrder);
+        return savedOrder;
+    }
+
+    private String buildRequestHash(CreateOrderRequest request) {
+        try {
+            String canonicalRequest = objectMapper.writeValueAsString(request);
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(canonicalRequest.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(bytes);
+        } catch (Exception e) {
+            throw new BadRequestException("Unable to process idempotent request");
+        }
     }
 
     public Page<OrderResponse> getAllOrders(int page, int size) {
@@ -321,6 +386,10 @@ public class OrderService {
             }
         }
 
+        if (!isTransitionAllowed(order.getStatus(), newStatus)) {
+            throw new BadRequestException("Illegal order status transition from " + order.getStatus() + " to " + newStatus);
+        }
+
         order.setStatus(newStatus);
         
         // Update specific functional timestamps
@@ -335,6 +404,14 @@ public class OrderService {
 
         log.info("Updated order {} status to {} by user {}", orderId, newStatus, requestingUserId);
         return OrderMapper.toResponse(savedOrder);
+    }
+
+    private boolean isTransitionAllowed(OrderStatus currentStatus, OrderStatus newStatus) {
+        if (currentStatus == newStatus) {
+            return true;
+        }
+        Set<OrderStatus> allowed = ALLOWED_STATUS_TRANSITIONS.getOrDefault(currentStatus, Collections.emptySet());
+        return allowed.contains(newStatus);
     }
 
 }

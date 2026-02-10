@@ -44,8 +44,9 @@ public class OrderController {
         @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
     public ResponseEntity<OrderResponse> createOrder(@AuthenticationPrincipal CustomUserDetails userDetails,
+                                                     @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
                                                      @Valid @RequestBody CreateOrderRequest request) {
-        OrderResponse response = orderService.createOrder(userDetails.getUserId(), request);
+        OrderResponse response = orderService.createOrder(userDetails.getUserId(), request, idempotencyKey);
         return ResponseEntity.ok(response);
     }
 

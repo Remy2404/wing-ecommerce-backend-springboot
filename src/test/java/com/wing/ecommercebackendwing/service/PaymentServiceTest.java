@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -58,6 +59,8 @@ public class PaymentServiceTest {
         // Arrange
         Payment payment = new Payment();
         payment.setMd5(md5);
+        payment.setAmount(new BigDecimal("12.50"));
+        payment.setCurrency("USD");
         Order order = new Order();
         com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
         user.setId(userId);
@@ -72,6 +75,8 @@ public class PaymentServiceTest {
         
         Map<String, Object> data = new HashMap<>();
         data.put("transactionId", bakongTransactionId);
+        data.put("amount", "12.50");
+        data.put("currency", "USD");
         responseBody.put("data", data);
         
         ResponseEntity<Map<String, Object>> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
@@ -96,6 +101,8 @@ public class PaymentServiceTest {
         // Arrange
         Payment payment = new Payment();
         payment.setMd5(md5);
+        payment.setAmount(new BigDecimal("12.50"));
+        payment.setCurrency("USD");
         Order order = new Order();
         com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
         user.setId(userId);
@@ -110,6 +117,8 @@ public class PaymentServiceTest {
         
         Map<String, Object> data = new HashMap<>();
         data.put("transactionId", "any-string-id");
+        data.put("amount", "12.50");
+        data.put("currency", "USD");
         responseBody.put("data", data);
         
         ResponseEntity<Map<String, Object>> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
@@ -124,5 +133,77 @@ public class PaymentServiceTest {
         assertTrue(result.isPaid());
         assertEquals("any-string-id", payment.getTransactionId());
         verify(paymentRepository).save(payment);
+    }
+
+    @SuppressWarnings("rawtypes")
+    @Test
+    void verifyPaymentByMd5_ShouldNotComplete_WhenAmountMismatch() {
+        Payment payment = new Payment();
+        payment.setMd5(md5);
+        payment.setAmount(new BigDecimal("12.50"));
+        payment.setCurrency("USD");
+        Order order = new Order();
+        com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
+        user.setId(userId);
+        order.setUser(user);
+        payment.setOrder(order);
+
+        when(paymentRepository.findByMd5(anyString())).thenReturn(Optional.of(payment));
+
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("responseCode", "0");
+        responseBody.put("responseMessage", "Success");
+        Map<String, Object> data = new HashMap<>();
+        data.put("transactionId", "tx-1");
+        data.put("amount", "99.99");
+        data.put("currency", "USD");
+        responseBody.put("data", data);
+
+        ResponseEntity<Map<String, Object>> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(org.springframework.core.ParameterizedTypeReference.class)))
+                .thenReturn((ResponseEntity) responseEntity);
+
+        PaymentVerificationResponse result = paymentService.verifyPaymentByMd5(md5, userId);
+
+        assertFalse(result.isPaid());
+        assertEquals(PaymentStatus.PENDING, payment.getStatus());
+        verify(paymentRepository, never()).save(payment);
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @SuppressWarnings("rawtypes")
+    @Test
+    void verifyPaymentByMd5_ShouldNotComplete_WhenCurrencyMismatch() {
+        Payment payment = new Payment();
+        payment.setMd5(md5);
+        payment.setAmount(new BigDecimal("12.50"));
+        payment.setCurrency("USD");
+        Order order = new Order();
+        com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
+        user.setId(userId);
+        order.setUser(user);
+        payment.setOrder(order);
+
+        when(paymentRepository.findByMd5(anyString())).thenReturn(Optional.of(payment));
+
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("responseCode", "0");
+        responseBody.put("responseMessage", "Success");
+        Map<String, Object> data = new HashMap<>();
+        data.put("transactionId", "tx-1");
+        data.put("amount", "12.50");
+        data.put("currency", "KHR");
+        responseBody.put("data", data);
+
+        ResponseEntity<Map<String, Object>> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(org.springframework.core.ParameterizedTypeReference.class)))
+                .thenReturn((ResponseEntity) responseEntity);
+
+        PaymentVerificationResponse result = paymentService.verifyPaymentByMd5(md5, userId);
+
+        assertFalse(result.isPaid());
+        assertEquals(PaymentStatus.PENDING, payment.getStatus());
+        verify(paymentRepository, never()).save(payment);
+        verify(orderRepository, never()).save(any(Order.class));
     }
 }

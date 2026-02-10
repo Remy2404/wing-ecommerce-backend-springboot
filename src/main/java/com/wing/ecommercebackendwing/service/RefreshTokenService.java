@@ -81,6 +81,11 @@ public class RefreshTokenService {
         });
     }
 
+    @Transactional
+    public int revokeIfActive(String token) {
+        return refreshTokenRepository.revokeIfActive(token);
+    }
+
     public boolean isRevoked(String token) {
         return refreshTokenRepository.findByToken(token)
                 .map(RefreshToken::getRevoked)

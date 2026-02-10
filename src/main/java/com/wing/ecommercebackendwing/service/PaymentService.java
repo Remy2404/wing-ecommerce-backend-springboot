@@ -211,6 +211,19 @@ public class PaymentService {
                         }
                     }
 
+                    double expectedAmount = payment.getAmount() != null ? payment.getAmount().doubleValue() : 0.0;
+                    String expectedCurrency = payment.getCurrency() != null ? payment.getCurrency() : "USD";
+                    if (Double.compare(amount, expectedAmount) != 0 ||
+                            !expectedCurrency.equalsIgnoreCase(currency)) {
+                        log.warn("Payment amount/currency mismatch for transaction {}. expectedAmount={}, actualAmount={}, expectedCurrency={}, actualCurrency={}",
+                                transactionId, expectedAmount, amount, expectedCurrency, currency);
+                        return PaymentVerificationResponse.builder()
+                                .isPaid(false)
+                                .expired(false)
+                                .message("Payment verification failed due to amount or currency mismatch")
+                                .build();
+                    }
+
                     payment.setStatus(PaymentStatus.COMPLETED);
                     payment.setPaidAt(Instant.now());
                     payment.setGatewayResponse(responseBody.toString());

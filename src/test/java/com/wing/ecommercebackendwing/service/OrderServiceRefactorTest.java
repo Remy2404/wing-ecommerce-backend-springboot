@@ -4,10 +4,13 @@ import com.wing.ecommercebackendwing.dto.request.order.CreateOrderRequest;
 import com.wing.ecommercebackendwing.dto.request.order.OrderItemRequest;
 import com.wing.ecommercebackendwing.dto.request.order.ShippingAddressRequest;
 import com.wing.ecommercebackendwing.dto.response.order.OrderResponse;
+import com.wing.ecommercebackendwing.exception.custom.BadRequestException;
 import com.wing.ecommercebackendwing.model.entity.*;
 import com.wing.ecommercebackendwing.model.enums.OrderStatus;
+import com.wing.ecommercebackendwing.model.enums.UserRole;
 import com.wing.ecommercebackendwing.repository.*;
 import com.wing.ecommercebackendwing.util.OrderNumberGenerator;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +41,8 @@ public class OrderServiceRefactorTest {
     @Mock private TaxService taxService;
     @Mock private DeliveryFeeService deliveryFeeService;
     @Mock private DiscountService discountService;
+    @Mock private OrderIdempotencyRecordRepository orderIdempotencyRecordRepository;
+    @Mock private ObjectMapper objectMapper;
 
     @InjectMocks
     private OrderService orderService;
@@ -86,6 +91,7 @@ public class OrderServiceRefactorTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
         when(cartRepository.findByUserId(userId)).thenReturn(Optional.of(cart));
+        when(productRepository.decrementStockIfAvailable(productId, 2)).thenReturn(1);
         when(addressRepository.save(any(Address.class))).thenAnswer(i -> i.getArguments()[0]);
         when(orderNumberGenerator.generateOrderNumber()).thenReturn("ORD-123");
         when(taxService.calculateTax(any())).thenReturn(BigDecimal.ZERO);
@@ -97,8 +103,8 @@ public class OrderServiceRefactorTest {
         OrderResponse result = orderService.createOrder(userId, request);
 
         // Assert
-        assertEquals(98, product.getStockQuantity());
-        verify(productRepository).save(product);
+        verify(productRepository).decrementStockIfAvailable(productId, 2);
+        verify(productRepository, never()).save(any(Product.class));
         verify(cartRepository, never()).save(cart); // Cart should NOT be saved/cleared
         assertNotNull(result);
         assertEquals("ORD-123", result.getOrderNumber());
@@ -126,6 +132,7 @@ public class OrderServiceRefactorTest {
         
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(cartRepository.findByUserId(userId)).thenReturn(Optional.of(cart));
+        when(productRepository.decrementStockIfAvailable(productId, 3)).thenReturn(1);
         when(addressRepository.save(any(Address.class))).thenAnswer(i -> i.getArguments()[0]);
         when(orderNumberGenerator.generateOrderNumber()).thenReturn("ORD-123");
         when(taxService.calculateTax(any())).thenReturn(BigDecimal.ZERO);
@@ -137,8 +144,8 @@ public class OrderServiceRefactorTest {
         OrderResponse result = orderService.createOrder(userId, request);
 
         // Assert
-        assertEquals(97, product.getStockQuantity());
-        verify(productRepository).save(product);
+        verify(productRepository).decrementStockIfAvailable(productId, 3);
+        verify(productRepository, never()).save(any(Product.class));
         assertTrue(cart.getItems().isEmpty());
         verify(cartRepository).save(cart); // Cart SHOULD be cleared
     }
@@ -168,8 +175,230 @@ public class OrderServiceRefactorTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
         when(productRepository.findById(otherProduct.getId())).thenReturn(Optional.of(otherProduct));
+        when(productRepository.decrementStockIfAvailable(productId, 1)).thenReturn(1);
+        when(productRepository.decrementStockIfAvailable(otherProduct.getId(), 1)).thenReturn(1);
 
         // Act & Assert
         assertThrows(RuntimeException.class, () -> orderService.createOrder(userId, request));
+    }
+
+    @Test
+    void createOrder_VariantProductMismatch_ShouldRejectWithoutSideEffects() {
+        UUID variantId = UUID.randomUUID();
+
+        Product otherProduct = new Product();
+        otherProduct.setId(UUID.randomUUID());
+
+        ProductVariant mismatchedVariant = new ProductVariant();
+        mismatchedVariant.setId(variantId);
+        mismatchedVariant.setProduct(otherProduct);
+        mismatchedVariant.setStock(5);
+        mismatchedVariant.setPrice(new BigDecimal("2.50"));
+
+        OrderItemRequest itemReq = new OrderItemRequest();
+        itemReq.setProductId(productId);
+        itemReq.setVariantId(variantId);
+        itemReq.setQuantity(1);
+
+        CreateOrderRequest request = new CreateOrderRequest();
+        request.setItems(List.of(itemReq));
+        request.setShippingAddress(ShippingAddressRequest.builder()
+                .street("Street").city("City").state("State").zipCode("12345").build());
+        request.setPaymentMethod("KHQR");
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productVariantRepository.findById(variantId)).thenReturn(Optional.of(mismatchedVariant));
+        when(cartRepository.findByUserId(userId)).thenReturn(Optional.empty());
+
+        assertThrows(BadRequestException.class, () -> orderService.createOrder(userId, request));
+
+        assertEquals(100, product.getStockQuantity());
+        verify(productVariantRepository, never()).save(any(ProductVariant.class));
+        verify(productRepository, never()).save(any(Product.class));
+        verify(orderRepository, never()).save(any(Order.class));
+        verify(cartRepository, never()).save(any(Cart.class));
+        verify(addressRepository, never()).save(any(Address.class));
+    }
+
+    @Test
+    void createOrder_BuyNow_ShouldRejectWhenAtomicDecrementFails_WithoutPartialWrites() {
+        OrderItemRequest itemReq = new OrderItemRequest();
+        itemReq.setProductId(productId);
+        itemReq.setQuantity(2);
+
+        CreateOrderRequest request = new CreateOrderRequest();
+        request.setItems(List.of(itemReq));
+        request.setShippingAddress(ShippingAddressRequest.builder()
+                .street("Street").city("City").state("State").zipCode("12345").build());
+        request.setPaymentMethod("KHQR");
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(cartRepository.findByUserId(userId)).thenReturn(Optional.empty());
+        when(productRepository.decrementStockIfAvailable(productId, 2)).thenReturn(0);
+
+        assertThrows(BadRequestException.class, () -> orderService.createOrder(userId, request));
+
+        verify(productRepository).decrementStockIfAvailable(productId, 2);
+        verify(orderRepository, never()).save(any(Order.class));
+        verify(addressRepository, never()).save(any(Address.class));
+        verify(cartRepository, never()).save(any(Cart.class));
+        verify(productVariantRepository, never()).decrementStockIfAvailable(any(UUID.class), anyInt());
+    }
+
+    @Test
+    void createOrder_IdempotencySameKeyAndPayload_ShouldReturnExistingOrderWithoutMutation() throws Exception {
+        UUID existingOrderId = UUID.randomUUID();
+        String idemKey = "idem-123";
+
+        Order existingOrder = new Order();
+        existingOrder.setId(existingOrderId);
+        existingOrder.setOrderNumber("ORD-EXISTING");
+        existingOrder.setStatus(OrderStatus.PENDING);
+        existingOrder.setTotal(BigDecimal.TEN);
+        existingOrder.setSubtotal(BigDecimal.TEN);
+        existingOrder.setDeliveryFee(BigDecimal.ZERO);
+        existingOrder.setDiscount(BigDecimal.ZERO);
+        existingOrder.setTax(BigDecimal.ZERO);
+        existingOrder.setUser(user);
+        existingOrder.setCreatedAt(java.time.Instant.now());
+        existingOrder.setUpdatedAt(java.time.Instant.now());
+        existingOrder.setItems(new ArrayList<>());
+
+        OrderIdempotencyRecord record = new OrderIdempotencyRecord();
+        record.setId(UUID.randomUUID());
+        record.setUser(user);
+        record.setIdempotencyKey(idemKey);
+        record.setRequestHash("hash-1");
+        record.setOrder(existingOrder);
+
+        CreateOrderRequest request = new CreateOrderRequest();
+        request.setItems(List.of(OrderItemRequest.builder().productId(productId).quantity(1).build()));
+        request.setPaymentMethod("KHQR");
+        request.setShippingAddress(ShippingAddressRequest.builder()
+                .street("Street").city("City").state("State").zipCode("12345").build());
+
+        when(objectMapper.writeValueAsString(request)).thenReturn("{\"req\":1}");
+        when(orderIdempotencyRecordRepository.findByUserIdAndIdempotencyKey(userId, idemKey))
+                .thenReturn(Optional.of(record));
+
+        String expectedHash = java.util.HexFormat.of().formatHex(
+                java.security.MessageDigest.getInstance("SHA-256").digest("{\"req\":1}".getBytes(java.nio.charset.StandardCharsets.UTF_8))
+        );
+        record.setRequestHash(expectedHash);
+
+        OrderResponse response = orderService.createOrder(userId, request, idemKey);
+
+        assertEquals("ORD-EXISTING", response.getOrderNumber());
+        verify(orderRepository, never()).save(any(Order.class));
+        verify(productRepository, never()).decrementStockIfAvailable(any(UUID.class), anyInt());
+        verify(productVariantRepository, never()).decrementStockIfAvailable(any(UUID.class), anyInt());
+    }
+
+    @Test
+    void createOrder_IdempotencySameKeyDifferentPayload_ShouldRejectWithoutWrites() throws Exception {
+        String idemKey = "idem-123";
+        OrderIdempotencyRecord record = new OrderIdempotencyRecord();
+        record.setId(UUID.randomUUID());
+        record.setUser(user);
+        record.setIdempotencyKey(idemKey);
+        record.setRequestHash("different-hash");
+
+        CreateOrderRequest request = new CreateOrderRequest();
+        request.setItems(List.of(OrderItemRequest.builder().productId(productId).quantity(1).build()));
+        request.setPaymentMethod("KHQR");
+        request.setShippingAddress(ShippingAddressRequest.builder()
+                .street("Street").city("City").state("State").zipCode("12345").build());
+
+        when(objectMapper.writeValueAsString(request)).thenReturn("{\"req\":1}");
+        when(orderIdempotencyRecordRepository.findByUserIdAndIdempotencyKey(userId, idemKey))
+                .thenReturn(Optional.of(record));
+
+        assertThrows(BadRequestException.class, () -> orderService.createOrder(userId, request, idemKey));
+
+        verify(orderRepository, never()).save(any(Order.class));
+        verify(orderIdempotencyRecordRepository, never()).save(any(OrderIdempotencyRecord.class));
+        verify(productRepository, never()).decrementStockIfAvailable(any(UUID.class), anyInt());
+        verify(productVariantRepository, never()).decrementStockIfAvailable(any(UUID.class), anyInt());
+    }
+
+    @Test
+    void updateOrderStatus_ShouldRejectIllegalTransition() {
+        UUID orderId = UUID.randomUUID();
+        User admin = new User();
+        admin.setId(UUID.randomUUID());
+        admin.setRole(UserRole.ADMIN);
+
+        Order order = new Order();
+        order.setId(orderId);
+        order.setStatus(OrderStatus.DELIVERED);
+        order.setUser(user);
+        order.setItems(new ArrayList<>());
+        order.setSubtotal(BigDecimal.ZERO);
+        order.setDeliveryFee(BigDecimal.ZERO);
+        order.setDiscount(BigDecimal.ZERO);
+        order.setTax(BigDecimal.ZERO);
+        order.setTotal(BigDecimal.ZERO);
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(userRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+
+        assertThrows(BadRequestException.class,
+                () -> orderService.updateOrderStatus(orderId, OrderStatus.PENDING, admin.getId()));
+
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    void updateOrderStatus_ShouldAllowLegalTransition() {
+        UUID orderId = UUID.randomUUID();
+        User admin = new User();
+        admin.setId(UUID.randomUUID());
+        admin.setRole(UserRole.ADMIN);
+
+        Order order = new Order();
+        order.setId(orderId);
+        order.setStatus(OrderStatus.PENDING);
+        order.setUser(user);
+        order.setItems(new ArrayList<>());
+        order.setSubtotal(BigDecimal.ZERO);
+        order.setDeliveryFee(BigDecimal.ZERO);
+        order.setDiscount(BigDecimal.ZERO);
+        order.setTax(BigDecimal.ZERO);
+        order.setTotal(BigDecimal.ZERO);
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(userRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArguments()[0]);
+
+        OrderResponse response = orderService.updateOrderStatus(orderId, OrderStatus.CONFIRMED, admin.getId());
+
+        assertEquals("CONFIRMED", response.getStatus());
+        verify(orderRepository).save(any(Order.class));
+    }
+
+    @Test
+    void updateOrderStatus_CustomerCancelOnlyPendingOwnOrder() {
+        UUID orderId = UUID.randomUUID();
+        user.setRole(UserRole.CUSTOMER);
+
+        Order order = new Order();
+        order.setId(orderId);
+        order.setStatus(OrderStatus.PAID);
+        order.setUser(user);
+        order.setItems(new ArrayList<>());
+        order.setSubtotal(BigDecimal.ZERO);
+        order.setDeliveryFee(BigDecimal.ZERO);
+        order.setDiscount(BigDecimal.ZERO);
+        order.setTax(BigDecimal.ZERO);
+        order.setTotal(BigDecimal.ZERO);
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        assertThrows(RuntimeException.class,
+                () -> orderService.updateOrderStatus(orderId, OrderStatus.CANCELLED, userId));
+        verify(orderRepository, never()).save(any(Order.class));
     }
 }
