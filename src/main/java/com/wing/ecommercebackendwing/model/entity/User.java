@@ -3,6 +3,8 @@ package com.wing.ecommercebackendwing.model.entity;
 import com.wing.ecommercebackendwing.model.enums.UserRole;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.ToString;
+import lombok.EqualsAndHashCode;
 
 import java.time.Instant;
 import java.util.List;
@@ -32,6 +34,7 @@ public class User {
     private com.wing.ecommercebackendwing.model.enums.AuthProvider authProvider = com.wing.ecommercebackendwing.model.enums.AuthProvider.LOCAL;
 
     // Nullable for OAuth users (GOOGLE provider)
+    @ToString.Exclude
     private String password;
 
     @Column(nullable = false)
@@ -60,6 +63,7 @@ public class User {
     private Boolean emailVerified = false;
 
     @Column(name = "email_verification_token")
+    @ToString.Exclude
     private String emailVerificationToken;
 
     @Column(name = "email_verification_sent_at")
@@ -83,33 +87,49 @@ public class User {
     private Boolean twofaEnabled = false;
 
     @Column(name = "twofa_secret")
+    @ToString.Exclude
     private String twofaSecret;
 
     // Password Reset
     @Column(name = "password_reset_token")
+    @ToString.Exclude
     private String passwordResetToken;
 
     @Column(name = "password_reset_token_expiry")
     private Instant passwordResetTokenExpiry;
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private List<Address> addresses;
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private List<Order> orders;
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private List<Review> reviews;
 
-    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private Merchant merchant;
 
-    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private WingPoints wingPoints;
 
-    @OneToMany(mappedBy = "driver", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "driver", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private List<Delivery> deliveries;
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private List<SavedPaymentMethod> savedPaymentMethods;
 }

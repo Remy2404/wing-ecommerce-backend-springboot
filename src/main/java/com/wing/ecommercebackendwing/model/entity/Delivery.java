@@ -3,6 +3,8 @@ package com.wing.ecommercebackendwing.model.entity;
 import com.wing.ecommercebackendwing.model.enums.DeliveryStatus;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.ToString;
+import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -17,12 +19,16 @@ public class Delivery {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private Order order;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "driver_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private User driver;
 
     @Enumerated(EnumType.STRING)

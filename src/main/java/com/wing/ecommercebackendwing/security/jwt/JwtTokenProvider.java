@@ -113,8 +113,11 @@ public class JwtTokenProvider {
                     .build()
                     .parseSignedClaims(token);
             return true;
+        } catch (io.jsonwebtoken.ExpiredJwtException ex) {
+            // Expired access tokens are expected in normal refresh flow; keep logs low-noise.
+            log.debug("JWT expired: {}", ex.getMessage());
         } catch (JwtException ex) {
-            log.error("JWT validation error: {}", ex.getMessage());
+            log.warn("JWT validation error: {}", ex.getMessage());
         }
         return false;
     }

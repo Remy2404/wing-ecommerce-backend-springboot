@@ -32,6 +32,7 @@ public class UserService {
     private final OrderRepository orderRepository;
     private final WishlistRepository wishlistRepository;
     private final NotificationRepository notificationRepository;
+    private final PhoneNumberService phoneNumberService;
     @Value("${app.upload-dir:uploads}")
     private String uploadDir;
     @Value("${app.public-base-url:http://localhost:8081}")
@@ -50,7 +51,9 @@ public class UserService {
         
         if (updateRequest.getFirstName() != null) user.setFirstName(updateRequest.getFirstName());
         if (updateRequest.getLastName() != null) user.setLastName(updateRequest.getLastName());
-        if (updateRequest.getPhoneNumber() != null) user.setPhone(updateRequest.getPhoneNumber());
+        if (updateRequest.getPhoneNumber() != null) {
+            user.setPhone(phoneNumberService.normalizeToE164(updateRequest.getPhoneNumber(), null));
+        }
         
         userRepository.save(user);
         return UserMapper.toResponse(user);

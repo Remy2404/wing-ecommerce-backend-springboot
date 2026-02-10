@@ -36,9 +36,13 @@ public class EnhancedAuthService {
     private final EmailService emailService;
     private final LoginAttemptService loginAttemptService;
     private final TwoFactorAuthService twoFactorAuthService;
+    private final PhoneNumberService phoneNumberService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        String normalizedPhone = phoneNumberService.normalizeToE164(request.getPhone(), null);
+        request.setPhone(normalizedPhone);
+
         // Validate password confirmation
         if (!request.getPassword().equals(request.getConfirmPassword())) {
             throw new com.wing.ecommercebackendwing.exception.custom.BadRequestException("Passwords do not match");
@@ -173,7 +177,23 @@ public class EnhancedAuthService {
                 .orElseThrow(() -> new TokenRefreshException(refreshTokenStr, "Refresh token not found"));
 
         if (Boolean.TRUE.equals(refreshToken.getRevoked())) {
-            throw new TokenRefreshException(refreshTokenStr, "Refresh token revoked. Please login again");
+            // Allow short in-flight replay window to avoid false logout when multiple requests
+            // trigger refresh concurrently and one already rotated this token.
+            if (!refreshTokenService.isRecentlyRevoked(refreshToken)) {
+                throw new TokenRefreshException(refreshTokenStr, "Refresh token revoked. Please login again");
+            }
+
+            RefreshToken latestActive = refreshTokenService.findLatestActiveByUserId(refreshToken.getUser().getId())
+                    .orElseThrow(() -> new TokenRefreshException(refreshTokenStr, "Refresh token revoked. Please login again"));
+            latestActive = refreshTokenService.verifyExpiration(latestActive);
+            User user = latestActive.getUser();
+            String newAccessToken = jwtTokenProvider.generateToken(user);
+
+            return AuthResponse.builder()
+                    .token(newAccessToken)
+                    .refreshToken(latestActive.getToken())
+                    .user(buildUserSummary(user))
+                    .build();
         }
 
         refreshToken = refreshTokenService.verifyExpiration(refreshToken);

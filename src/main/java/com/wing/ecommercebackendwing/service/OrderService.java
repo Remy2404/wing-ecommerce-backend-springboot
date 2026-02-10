@@ -4,6 +4,7 @@ import com.wing.ecommercebackendwing.dto.mapper.OrderMapper;
 import com.wing.ecommercebackendwing.dto.request.order.CreateOrderRequest;
 import com.wing.ecommercebackendwing.dto.response.order.OrderResponse;
 import com.wing.ecommercebackendwing.exception.custom.BadRequestException;
+import com.wing.ecommercebackendwing.exception.custom.ForbiddenException;
 import com.wing.ecommercebackendwing.exception.custom.ResourceNotFoundException;
 import com.wing.ecommercebackendwing.model.entity.*;
 import com.wing.ecommercebackendwing.model.enums.OrderStatus;
@@ -56,6 +57,7 @@ public class OrderService {
     private final DiscountService discountService;
     private final OrderIdempotencyRecordRepository orderIdempotencyRecordRepository;
     private final ObjectMapper objectMapper;
+    private final PhoneNumberService phoneNumberService;
 
     @Transactional
     public OrderResponse createOrder(UUID userId, CreateOrderRequest request) {
@@ -135,6 +137,8 @@ public class OrderService {
                     updatedRows = productRepository.decrementStockIfAvailable(product.getId(), itemReq.getQuantity());
                 }
                 if (updatedRows == 0) {
+                    log.error("Insufficient stock for product {}. Current: {}, Requested: {}", 
+                        product.getName(), product.getStockQuantity(), itemReq.getQuantity());
                     throw new BadRequestException("Insufficient stock for product " + product.getName());
                 }
 
@@ -178,6 +182,8 @@ public class OrderService {
                     updatedRows = productRepository.decrementStockIfAvailable(product.getId(), cartItem.getQuantity());
                 }
                 if (updatedRows == 0) {
+                    log.error("Insufficient stock for product {} in cart. Current: {}, Requested: {}", 
+                        product.getName(), product.getStockQuantity(), cartItem.getQuantity());
                     throw new BadRequestException("Insufficient stock for product " + product.getName() + " in your cart");
                 }
 
@@ -230,7 +236,10 @@ public class OrderService {
             deliveryAddress.setUser(user);
             deliveryAddress.setLabel("Order Delivery");
             deliveryAddress.setFullName(request.getShippingAddress().getFullName());
-            deliveryAddress.setPhone(request.getShippingAddress().getPhone());
+            deliveryAddress.setPhone(phoneNumberService.normalizeToE164(
+                    request.getShippingAddress().getPhone(),
+                    request.getShippingAddress().getCountry()
+            ));
             deliveryAddress.setStreet(request.getShippingAddress().getStreet());
             deliveryAddress.setCity(request.getShippingAddress().getCity());
             deliveryAddress.setProvince(request.getShippingAddress().getState());
@@ -266,12 +275,7 @@ public class OrderService {
         BigDecimal deliveryFee = deliveryFeeService.calculateFee(
                 request.getDistanceKm() != null ? request.getDistanceKm() : BigDecimal.ZERO);
         BigDecimal discount = discountService.calculateDiscount(subtotal, request.getCouponCode());
-        
-        // Apply FREEDEL coupon
-        if (discountService.isFreeDeliveryCoupon(request.getCouponCode())) {
-            deliveryFee = BigDecimal.ZERO;
-        }
-        
+
         BigDecimal total = subtotal.add(deliveryFee).add(tax).subtract(discount);
 
         order.setSubtotal(subtotal);
@@ -357,10 +361,11 @@ public class OrderService {
     @Transactional
     public OrderResponse updateOrderStatus(UUID orderId, OrderStatus newStatus, UUID requestingUserId) {
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        OrderStatus previousStatus = order.getStatus();
 
         User requestingUser = userRepository.findById(requestingUserId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         com.wing.ecommercebackendwing.model.enums.UserRole role = requestingUser.getRole();
 
@@ -370,24 +375,28 @@ public class OrderService {
         } else if (role == com.wing.ecommercebackendwing.model.enums.UserRole.MERCHANT) {
             // Merchant can only update their own orders
             if (!order.getMerchant().getUser().getId().equals(requestingUserId)) {
-                throw new RuntimeException("Unauthorized: This order does not belong to your store.");
+                throw new ForbiddenException("Unauthorized: This order does not belong to your store.");
             }
         } else {
             // Regular user can ONLY cancel their own order if it's still pending
             if (newStatus == OrderStatus.CANCELLED) {
                 if (!order.getUser().getId().equals(requestingUserId)) {
-                    throw new RuntimeException("Unauthorized: You can only cancel your own orders.");
+                    throw new ForbiddenException("Unauthorized: You can only cancel your own orders.");
                 }
                 if (order.getStatus() != OrderStatus.PENDING) {
-                    throw new RuntimeException("Cannot cancel order that is already " + order.getStatus());
+                    throw new BadRequestException("Cannot cancel order that is already " + order.getStatus());
                 }
             } else {
-                throw new RuntimeException("Unauthorized: You do not have permission to update order status to " + newStatus);
+                throw new ForbiddenException("Unauthorized: You do not have permission to update order status to " + newStatus);
             }
         }
 
         if (!isTransitionAllowed(order.getStatus(), newStatus)) {
             throw new BadRequestException("Illegal order status transition from " + order.getStatus() + " to " + newStatus);
+        }
+
+        if (newStatus == OrderStatus.CANCELLED && previousStatus != OrderStatus.CANCELLED) {
+            restoreStockForCancelledOrder(order);
         }
 
         order.setStatus(newStatus);
@@ -412,6 +421,25 @@ public class OrderService {
         }
         Set<OrderStatus> allowed = ALLOWED_STATUS_TRANSITIONS.getOrDefault(currentStatus, Collections.emptySet());
         return allowed.contains(newStatus);
+    }
+
+    private void restoreStockForCancelledOrder(Order order) {
+        if (order.getItems() == null || order.getItems().isEmpty()) {
+            return;
+        }
+
+        for (OrderItem item : order.getItems()) {
+            int quantity = item.getQuantity() != null ? item.getQuantity() : 0;
+            if (quantity <= 0) {
+                continue;
+            }
+
+            if (item.getVariant() != null) {
+                productVariantRepository.incrementStock(item.getVariant().getId(), quantity);
+            } else if (item.getProduct() != null) {
+                productRepository.incrementStock(item.getProduct().getId(), quantity);
+            }
+        }
     }
 
 }

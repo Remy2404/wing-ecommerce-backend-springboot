@@ -2,7 +2,6 @@ package com.wing.ecommercebackendwing.dto.request.auth;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,10 +24,6 @@ public class RegisterRequest {
     private String email;
 
     @NotBlank
-    @Pattern(
-            regexp = "^(\\+?[1-9]\\d{1,14}|0\\d{8,9})$",
-            message = "Invalid phone number format"
-    )
     private String phone;
 
     @NotBlank

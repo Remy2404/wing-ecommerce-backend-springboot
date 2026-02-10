@@ -46,6 +46,10 @@ public class RefreshTokenService {
         return refreshTokenRepository.findByToken(token);
     }
 
+    public Optional<RefreshToken> findLatestActiveByUserId(UUID userId) {
+        return refreshTokenRepository.findTopByUserIdAndRevokedFalseOrderByCreatedAtDesc(userId);
+    }
+
     public boolean isRecentlyRevoked(RefreshToken token) {
         if (!Boolean.TRUE.equals(token.getRevoked())) {
             return false;

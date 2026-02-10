@@ -5,6 +5,8 @@ import com.wing.ecommercebackendwing.dto.request.order.OrderItemRequest;
 import com.wing.ecommercebackendwing.dto.request.order.ShippingAddressRequest;
 import com.wing.ecommercebackendwing.dto.response.order.OrderResponse;
 import com.wing.ecommercebackendwing.exception.custom.BadRequestException;
+import com.wing.ecommercebackendwing.exception.custom.ForbiddenException;
+import com.wing.ecommercebackendwing.exception.custom.ResourceNotFoundException;
 import com.wing.ecommercebackendwing.model.entity.*;
 import com.wing.ecommercebackendwing.model.enums.OrderStatus;
 import com.wing.ecommercebackendwing.model.enums.UserRole;
@@ -43,6 +45,7 @@ public class OrderServiceRefactorTest {
     @Mock private DiscountService discountService;
     @Mock private OrderIdempotencyRecordRepository orderIdempotencyRecordRepository;
     @Mock private ObjectMapper objectMapper;
+    @Mock private PhoneNumberService phoneNumberService;
 
     @InjectMocks
     private OrderService orderService;
@@ -69,6 +72,7 @@ public class OrderServiceRefactorTest {
         product.setPrice(BigDecimal.TEN);
         product.setStockQuantity(100);
         product.setMerchant(merchant);
+        lenient().when(phoneNumberService.normalizeToE164(anyString(), any())).thenReturn("+855962026409");
     }
 
     @Test
@@ -81,6 +85,9 @@ public class OrderServiceRefactorTest {
         CreateOrderRequest request = new CreateOrderRequest();
         request.setItems(List.of(itemReq));
         request.setShippingAddress(ShippingAddressRequest.builder()
+                .fullName("Buyer")
+                .phone("09620264091")
+                .country("KH")
                 .street("Street").city("City").state("State").zipCode("12345").build());
         request.setPaymentMethod("KHQR");
 
@@ -116,6 +123,9 @@ public class OrderServiceRefactorTest {
         CreateOrderRequest request = new CreateOrderRequest();
         request.setItems(null); // Checkout from cart
         request.setShippingAddress(ShippingAddressRequest.builder()
+                .fullName("Buyer")
+                .phone("09620264091")
+                .country("KH")
                 .street("Street").city("City").state("State").zipCode("12345").build());
         request.setPaymentMethod("KHQR");
 
@@ -203,6 +213,9 @@ public class OrderServiceRefactorTest {
         CreateOrderRequest request = new CreateOrderRequest();
         request.setItems(List.of(itemReq));
         request.setShippingAddress(ShippingAddressRequest.builder()
+                .fullName("Buyer")
+                .phone("09620264091")
+                .country("KH")
                 .street("Street").city("City").state("State").zipCode("12345").build());
         request.setPaymentMethod("KHQR");
 
@@ -230,6 +243,9 @@ public class OrderServiceRefactorTest {
         CreateOrderRequest request = new CreateOrderRequest();
         request.setItems(List.of(itemReq));
         request.setShippingAddress(ShippingAddressRequest.builder()
+                .fullName("Buyer")
+                .phone("09620264091")
+                .country("KH")
                 .street("Street").city("City").state("State").zipCode("12345").build());
         request.setPaymentMethod("KHQR");
 
@@ -277,6 +293,9 @@ public class OrderServiceRefactorTest {
         request.setItems(List.of(OrderItemRequest.builder().productId(productId).quantity(1).build()));
         request.setPaymentMethod("KHQR");
         request.setShippingAddress(ShippingAddressRequest.builder()
+                .fullName("Buyer")
+                .phone("09620264091")
+                .country("KH")
                 .street("Street").city("City").state("State").zipCode("12345").build());
 
         when(objectMapper.writeValueAsString(request)).thenReturn("{\"req\":1}");
@@ -309,6 +328,9 @@ public class OrderServiceRefactorTest {
         request.setItems(List.of(OrderItemRequest.builder().productId(productId).quantity(1).build()));
         request.setPaymentMethod("KHQR");
         request.setShippingAddress(ShippingAddressRequest.builder()
+                .fullName("Buyer")
+                .phone("09620264091")
+                .country("KH")
                 .street("Street").city("City").state("State").zipCode("12345").build());
 
         when(objectMapper.writeValueAsString(request)).thenReturn("{\"req\":1}");
@@ -397,8 +419,131 @@ public class OrderServiceRefactorTest {
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
-        assertThrows(RuntimeException.class,
+        assertThrows(BadRequestException.class,
                 () -> orderService.updateOrderStatus(orderId, OrderStatus.CANCELLED, userId));
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    void updateOrderStatus_Cancel_ShouldRestoreStockForProductItem() {
+        UUID orderId = UUID.randomUUID();
+        user.setRole(UserRole.CUSTOMER);
+
+        Product orderProduct = new Product();
+        UUID orderProductId = UUID.randomUUID();
+        orderProduct.setId(orderProductId);
+
+        OrderItem orderItem = new OrderItem();
+        orderItem.setProduct(orderProduct);
+        orderItem.setQuantity(3);
+        orderItem.setUnitPrice(BigDecimal.ONE);
+
+        Order order = new Order();
+        order.setId(orderId);
+        order.setStatus(OrderStatus.PENDING);
+        order.setUser(user);
+        order.setItems(new ArrayList<>(List.of(orderItem)));
+        orderItem.setOrder(order);
+        order.setSubtotal(BigDecimal.ZERO);
+        order.setDeliveryFee(BigDecimal.ZERO);
+        order.setDiscount(BigDecimal.ZERO);
+        order.setTax(BigDecimal.ZERO);
+        order.setTotal(BigDecimal.ZERO);
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(productRepository.incrementStock(orderProductId, 3)).thenReturn(1);
+
+        OrderResponse response = orderService.updateOrderStatus(orderId, OrderStatus.CANCELLED, userId);
+
+        assertEquals("CANCELLED", response.getStatus());
+        verify(productRepository).incrementStock(orderProductId, 3);
+        verify(productVariantRepository, never()).incrementStock(any(UUID.class), anyInt());
+        verify(orderRepository).save(any(Order.class));
+    }
+
+    @Test
+    void updateOrderStatus_CancelSameStatus_ShouldNotRestoreStockTwice() {
+        UUID orderId = UUID.randomUUID();
+        User admin = new User();
+        admin.setId(UUID.randomUUID());
+        admin.setRole(UserRole.ADMIN);
+
+        Product orderProduct = new Product();
+        UUID orderProductId = UUID.randomUUID();
+        orderProduct.setId(orderProductId);
+
+        OrderItem orderItem = new OrderItem();
+        orderItem.setProduct(orderProduct);
+        orderItem.setQuantity(2);
+        orderItem.setUnitPrice(BigDecimal.ONE);
+
+        Order order = new Order();
+        order.setId(orderId);
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setUser(user);
+        order.setItems(new ArrayList<>(List.of(orderItem)));
+        orderItem.setOrder(order);
+        order.setSubtotal(BigDecimal.ZERO);
+        order.setDeliveryFee(BigDecimal.ZERO);
+        order.setDiscount(BigDecimal.ZERO);
+        order.setTax(BigDecimal.ZERO);
+        order.setTotal(BigDecimal.ZERO);
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(userRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArguments()[0]);
+
+        OrderResponse response = orderService.updateOrderStatus(orderId, OrderStatus.CANCELLED, admin.getId());
+
+        assertEquals("CANCELLED", response.getStatus());
+        verify(productRepository, never()).incrementStock(orderProductId, 2);
+        verify(productVariantRepository, never()).incrementStock(any(UUID.class), anyInt());
+        verify(orderRepository).save(any(Order.class));
+    }
+
+    @Test
+    void updateOrderStatus_CustomerCannotCancelOtherUsersOrder_ShouldThrowForbidden() {
+        UUID orderId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
+
+        User customer = new User();
+        customer.setId(userId);
+        customer.setRole(UserRole.CUSTOMER);
+
+        User orderOwner = new User();
+        orderOwner.setId(otherUserId);
+        orderOwner.setRole(UserRole.CUSTOMER);
+
+        Order order = new Order();
+        order.setId(orderId);
+        order.setStatus(OrderStatus.PENDING);
+        order.setUser(orderOwner);
+        order.setItems(new ArrayList<>());
+        order.setSubtotal(BigDecimal.ZERO);
+        order.setDeliveryFee(BigDecimal.ZERO);
+        order.setDiscount(BigDecimal.ZERO);
+        order.setTax(BigDecimal.ZERO);
+        order.setTotal(BigDecimal.ZERO);
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(customer));
+
+        assertThrows(ForbiddenException.class,
+                () -> orderService.updateOrderStatus(orderId, OrderStatus.CANCELLED, userId));
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    void updateOrderStatus_WhenOrderNotFound_ShouldThrowResourceNotFound() {
+        UUID orderId = UUID.randomUUID();
+        UUID requester = UUID.randomUUID();
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> orderService.updateOrderStatus(orderId, OrderStatus.CANCELLED, requester));
         verify(orderRepository, never()).save(any(Order.class));
     }
 }

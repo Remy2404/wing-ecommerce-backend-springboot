@@ -31,6 +31,8 @@ class AddressServiceValidationTest {
     private UserRepository userRepository;
     @Mock
     private OrderRepository orderRepository;
+    @Mock
+    private PhoneNumberService phoneNumberService;
 
     @InjectMocks
     private AddressService addressService;

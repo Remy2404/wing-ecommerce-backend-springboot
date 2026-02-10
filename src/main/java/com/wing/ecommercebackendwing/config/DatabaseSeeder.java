@@ -14,7 +14,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-@Profile("seed")
+@Profile("dev")
 @Component
 @RequiredArgsConstructor
 public class DatabaseSeeder implements CommandLineRunner {
@@ -66,21 +66,12 @@ public class DatabaseSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) throws Exception {
-        System.out.println("🌱 Starting database seed...");
+        if (userRepository.count() > 0) {
+            System.out.println("🌱 Database already has users. Skipping seed...");
+            return;
+        }
 
-        // Try to fix schema mismatch (stock vs stock_quantity)
-        try {
-            jdbcTemplate.execute("ALTER TABLE products ALTER COLUMN stock_quantity DROP NOT NULL");
-            System.out.println("🔧 Adjusted 'stock_quantity' column to be nullable.");
-        } catch (Exception e) {
-            // Ignore if column doesn't exist or already nullable
-        }
-        try {
-            jdbcTemplate.execute("ALTER TABLE products ALTER COLUMN stock DROP NOT NULL");
-             System.out.println("🔧 Adjusted 'stock' column to be nullable.");
-        } catch (Exception e) {
-            // Ignore if column doesn't exist or already nullable
-        }
+        System.out.println("🌱 Starting database seed...");
 
         // Clear existing data using TRUNCATE CASCADE for proper FK handling
         System.out.println("🗑️ Clearing existing data...");
@@ -247,7 +238,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .slug("minimalist-leather-watch")
                 .description("A timeless design meets modern craftsmanship. Swiss movement, sapphire crystal, and genuine Italian leather strap.")
                 .price(new BigDecimal("0.01"))
-                .stockQuantity(8)
+                .stockQuantity(100)
                 .images(nextImage())
                 .rating(new BigDecimal("4.9"))
                 .reviewCount(89)
@@ -306,7 +297,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 .description("UV400 protection with polarized lenses. Titanium frame for ultimate durability and style.")
                 .price(new BigDecimal("0.01"))
                 .comparePrice(new BigDecimal("0.02"))
-                .stockQuantity(3)
+                .stockQuantity(50)
                 .images(nextImage())
                 .rating(new BigDecimal("4.7"))
                 .reviewCount(45)

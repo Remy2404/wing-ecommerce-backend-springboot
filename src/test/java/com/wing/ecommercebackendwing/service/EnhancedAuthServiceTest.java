@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import java.time.Instant;
 
 @ExtendWith(MockitoExtension.class)
 class EnhancedAuthServiceTest {
@@ -97,5 +98,40 @@ class EnhancedAuthServiceTest {
 
         verify(refreshTokenService, never()).createRefreshToken(user.getId());
         verify(jwtTokenProvider, never()).generateToken(user);
+    }
+
+    @Test
+    void refreshToken_ShouldReturnLatestActive_WhenTokenRecentlyRevoked() {
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setEmail("u@example.com");
+        user.setFirstName("U");
+        user.setLastName("S");
+        user.setRole(UserRole.CUSTOMER);
+
+        RefreshToken revoked = new RefreshToken();
+        revoked.setToken("old-refresh");
+        revoked.setUser(user);
+        revoked.setRevoked(true);
+        revoked.setRevokedAt(Instant.now());
+
+        RefreshToken active = new RefreshToken();
+        active.setToken("new-refresh");
+        active.setUser(user);
+        active.setExpiryDate(Instant.now().plusSeconds(3600));
+
+        when(refreshTokenService.findByTokenIncludingRevoked("old-refresh")).thenReturn(Optional.of(revoked));
+        when(refreshTokenService.isRecentlyRevoked(revoked)).thenReturn(true);
+        when(refreshTokenService.findLatestActiveByUserId(user.getId())).thenReturn(Optional.of(active));
+        when(refreshTokenService.verifyExpiration(active)).thenReturn(active);
+        when(jwtTokenProvider.generateToken(user)).thenReturn("new-access");
+
+        AuthResponse response = enhancedAuthService.refreshToken("old-refresh");
+
+        assertNotNull(response);
+        assertEquals("new-access", response.getToken());
+        assertEquals("new-refresh", response.getRefreshToken());
+        verify(refreshTokenService, never()).revokeIfActive("old-refresh");
+        verify(refreshTokenService, never()).createRefreshToken(user.getId());
     }
 }

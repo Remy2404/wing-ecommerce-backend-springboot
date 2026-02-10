@@ -32,6 +32,7 @@ public class AddressService {
     private final AddressRepository addressRepository;
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
+    private final PhoneNumberService phoneNumberService;
 
     public List<AddressResponse> getUserAddresses(UUID userId) {
         Set<UUID> inUseAddressIds = new HashSet<>(orderRepository.findDeliveryAddressIdsByUserId(userId));
@@ -50,7 +51,7 @@ public class AddressService {
         address.setUser(user);
         address.setLabel(request.getLabel());
         address.setFullName(request.getFullName());
-        address.setPhone(request.getPhone());
+        address.setPhone(phoneNumberService.normalizeToE164(request.getPhone(), request.getCountry()));
         address.setStreet(request.getStreet());
         address.setCity(request.getCity());
         address.setProvince(request.getState());
@@ -80,7 +81,13 @@ public class AddressService {
 
         if (request.getLabel() != null) address.setLabel(requireNonBlank(request.getLabel(), "label"));
         if (request.getFullName() != null) address.setFullName(requireNonBlank(request.getFullName(), "fullName"));
-        if (request.getPhone() != null) address.setPhone(requireNonBlank(request.getPhone(), "phone"));
+        if (request.getPhone() != null) {
+            String phoneInput = requireNonBlank(request.getPhone(), "phone");
+            String countryContext = request.getCountry() != null
+                    ? requireNonBlank(request.getCountry(), "country")
+                    : address.getCountry();
+            address.setPhone(phoneNumberService.normalizeToE164(phoneInput, countryContext));
+        }
         if (request.getStreet() != null) address.setStreet(requireNonBlank(request.getStreet(), "street"));
         if (request.getCity() != null) address.setCity(requireNonBlank(request.getCity(), "city"));
         if (request.getState() != null) address.setProvince(requireNonBlank(request.getState(), "state"));

@@ -11,5 +11,6 @@ import java.util.UUID;
 @Repository
 public interface PromotionRepository extends JpaRepository<Promotion, UUID> {
     Optional<Promotion> findByCode(String code);
+    Optional<Promotion> findByCodeIgnoreCase(String code);
     List<Promotion> findByIsActiveTrue();
 }

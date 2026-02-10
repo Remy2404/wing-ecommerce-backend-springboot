@@ -15,9 +15,5 @@ public class UpdateProfileRequest {
     private String firstName;
     @Pattern(regexp = ".*\\S.*", message = "Last name must not be blank")
     private String lastName;
-    @Pattern(
-            regexp = "^(\\+?[1-9]\\d{1,14}|0\\d{8,9})$",
-            message = "Invalid phone number format"
-    )
     private String phoneNumber;
 }

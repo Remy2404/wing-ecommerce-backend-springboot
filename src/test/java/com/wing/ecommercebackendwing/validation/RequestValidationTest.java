@@ -25,12 +25,27 @@ class RequestValidationTest {
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
     @Test
-    void registerRequest_shouldAcceptLocalPhoneStartingWithZero() {
+    void registerRequest_shouldAcceptCambodiaLocalPhone() {
         RegisterRequest request = RegisterRequest.builder()
                 .firstName("A")
                 .lastName("B")
                 .email("a@b.com")
-                .phone("096892323")
+                .phone("09620264091")
+                .password("Password1!")
+                .confirmPassword("Password1!")
+                .build();
+
+        Set<ConstraintViolation<RegisterRequest>> violations = validator.validate(request);
+        assertTrue(violations.isEmpty());
+    }
+
+    @Test
+    void registerRequest_shouldAcceptCambodiaE164Phone() {
+        RegisterRequest request = RegisterRequest.builder()
+                .firstName("A")
+                .lastName("B")
+                .email("a@b.com")
+                .phone("+8559620264091")
                 .password("Password1!")
                 .confirmPassword("Password1!")
                 .build();
@@ -60,17 +75,32 @@ class RequestValidationTest {
     }
 
     @Test
-    void updateProfileRequest_shouldRejectInvalidPhone() {
+    void updateProfileRequest_shouldNotUseRegexValidationForPhone() {
         UpdateProfileRequest request = UpdateProfileRequest.builder()
                 .phoneNumber("abc###")
                 .build();
 
         Set<ConstraintViolation<UpdateProfileRequest>> violations = validator.validate(request);
-        assertFalse(violations.isEmpty());
+        assertTrue(violations.isEmpty());
     }
 
     @Test
-    void createAddressRequest_shouldRejectInvalidPhone() {
+    void registerRequest_shouldNotUseRegexValidationForPhone() {
+        RegisterRequest request = RegisterRequest.builder()
+                .firstName("A")
+                .lastName("B")
+                .email("a@b.com")
+                .phone("09620264")
+                .password("Password1!")
+                .confirmPassword("Password1!")
+                .build();
+
+        Set<ConstraintViolation<RegisterRequest>> violations = validator.validate(request);
+        assertTrue(violations.isEmpty());
+    }
+
+    @Test
+    void createAddressRequest_shouldNotUseRegexValidationForPhone() {
         CreateAddressRequest request = CreateAddressRequest.builder()
                 .label("Home")
                 .fullName("User")
@@ -83,21 +113,37 @@ class RequestValidationTest {
                 .build();
 
         Set<ConstraintViolation<CreateAddressRequest>> violations = validator.validate(request);
-        assertFalse(violations.isEmpty());
+        assertTrue(violations.isEmpty());
     }
 
     @Test
-    void updateAddressRequest_shouldRejectInvalidPhone() {
+    void updateAddressRequest_shouldNotUseRegexValidationForPhone() {
         UpdateAddressRequest request = UpdateAddressRequest.builder()
-                .phone("abc###")
+                .phone("096-202-64091")
                 .build();
 
         Set<ConstraintViolation<UpdateAddressRequest>> violations = validator.validate(request);
-        assertFalse(violations.isEmpty());
+        assertTrue(violations.isEmpty());
     }
 
     @Test
-    void shippingAddressRequest_shouldRejectInvalidPhone() {
+    void shippingAddressRequest_shouldAcceptCambodiaLocalPhone() {
+        ShippingAddressRequest request = ShippingAddressRequest.builder()
+                .fullName("User")
+                .street("Street")
+                .city("City")
+                .state("State")
+                .zipCode("12000")
+                .country("KH")
+                .phone("0971234567")
+                .build();
+
+        Set<ConstraintViolation<ShippingAddressRequest>> violations = validator.validate(request);
+        assertTrue(violations.isEmpty());
+    }
+
+    @Test
+    void shippingAddressRequest_shouldNotUseRegexValidationForPhone() {
         ShippingAddressRequest request = ShippingAddressRequest.builder()
                 .fullName("User")
                 .street("Street")
@@ -109,7 +155,7 @@ class RequestValidationTest {
                 .build();
 
         Set<ConstraintViolation<ShippingAddressRequest>> violations = validator.validate(request);
-        assertFalse(violations.isEmpty());
+        assertTrue(violations.isEmpty());
     }
 
     @Test

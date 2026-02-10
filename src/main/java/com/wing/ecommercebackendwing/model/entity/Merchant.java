@@ -2,6 +2,8 @@ package com.wing.ecommercebackendwing.model.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.ToString;
+import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -14,8 +16,10 @@ public class Merchant {
      @Id
     @GeneratedValue(strategy = jakarta.persistence.GenerationType.AUTO)
     private java.util.UUID id;
-     @OneToOne
+     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private User user;
         @Column(name = "store_name", nullable = false, length = 100)
     private String storeName;
@@ -27,8 +31,10 @@ public class Merchant {
     private String phoneNumber;
         @Column(length = 255)
     private String email;
-        @ManyToOne
+        @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "address_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private Address address;
         @Column(name = "is_verified", nullable = false)
     private Boolean isVerified = false;
@@ -41,7 +47,11 @@ public class Merchant {
         @Column(name = "updated_at" , nullable = false)
     private Instant updatedAt;
         @OneToMany(mappedBy = "merchant" , cascade = CascadeType.ALL)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private List<Product> products;
     @OneToMany(mappedBy = "merchant", cascade = CascadeType.ALL)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private List<Order> orders;
 }

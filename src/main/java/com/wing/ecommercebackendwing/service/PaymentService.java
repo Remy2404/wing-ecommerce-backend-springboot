@@ -86,12 +86,13 @@ public class PaymentService {
         if (payment == null) {
             payment = new Payment();
             payment.setOrder(order);
+            order.setPayment(payment);
             payment.setCreatedAt(Instant.now());
         }
         payment.setMethod(PaymentMethod.KHQR);
         payment.setStatus(PaymentStatus.PENDING);
         payment.setAmount(order.getTotalAmount());
-        payment.setMd5(md5);
+        payment.setMd5(md5.trim().toLowerCase());
         
         long ttlSeconds = Math.min(Math.max(khqrExpirationSeconds, 1), MAX_KHQR_EXPIRATION_SECONDS);
         payment.setExpiresAt(Instant.now().plusSeconds(ttlSeconds));
@@ -134,7 +135,7 @@ public class PaymentService {
                     .isPaid(true)
                     .expired(false)
                     .paidAmount(payment.getAmount().doubleValue())
-                    .currency("USD")
+                    .currency(payment.getCurrency() != null ? payment.getCurrency() : "USD")
                     .message("Payment already completed")
                     .build();
         }
@@ -195,9 +196,18 @@ public class PaymentService {
                     
                     if (dataObj instanceof Map) {
                         Map<?, ?> data = (Map<?, ?>) dataObj;
-                        Object resTransactionId = data.get("transactionId");
-                        if (resTransactionId != null) {
-                            payment.setTransactionId(String.valueOf(resTransactionId));
+                        String gatewayReference = extractGatewayReference(data);
+                        if (gatewayReference != null) {
+                            if (payment.getTransactionId() != null && !payment.getTransactionId().equals(gatewayReference)) {
+                                log.error("Gateway reference mismatch for payment md5={}. existingRef={}, incomingRef={}",
+                                        transactionId, payment.getTransactionId(), gatewayReference);
+                                return PaymentVerificationResponse.builder()
+                                        .isPaid(false)
+                                        .expired(false)
+                                        .message("Payment verification failed due to transaction reference mismatch")
+                                        .build();
+                            }
+                            payment.setTransactionId(gatewayReference);
                         }
                         
                         Object amountObj = data.get("amount");
@@ -230,9 +240,11 @@ public class PaymentService {
                     paymentRepository.save(payment);
 
                     Order order = payment.getOrder();
-                    order.setStatus(OrderStatus.PAID);
-                    order.setUpdatedAt(Instant.now());
-                    orderRepository.save(order);
+                    if (!isOrderStateTerminalForPayment(order.getStatus())) {
+                        order.setStatus(OrderStatus.PAID);
+                        order.setUpdatedAt(Instant.now());
+                        orderRepository.save(order);
+                    }
 
                     log.info("Payment verified successfully for transaction {}", transactionId);
                     
@@ -267,6 +279,25 @@ public class PaymentService {
                     .message("Error: " + e.getMessage())
                     .build();
         }
+    }
+
+    private String extractGatewayReference(Map<?, ?> data) {
+        String[] candidateKeys = {"transactionId", "externalRef", "instructionRef", "trackingId"};
+        for (String key : candidateKeys) {
+            Object raw = data.get(key);
+            if (raw == null) continue;
+            String normalized = String.valueOf(raw).trim();
+            if (!normalized.isEmpty() && !"null".equalsIgnoreCase(normalized)) {
+                return normalized;
+            }
+        }
+        return null;
+    }
+
+    private boolean isOrderStateTerminalForPayment(OrderStatus status) {
+        return status == OrderStatus.PAID
+                || status == OrderStatus.CANCELLED
+                || status == OrderStatus.DELIVERED;
     }
 
     @Transactional
