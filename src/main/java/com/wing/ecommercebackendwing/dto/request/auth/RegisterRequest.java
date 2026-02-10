@@ -25,7 +25,10 @@ public class RegisterRequest {
     private String email;
 
     @NotBlank
-    @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "Invalid phone number format")
+    @Pattern(
+            regexp = "^(\\+?[1-9]\\d{1,14}|0\\d{8,9})$",
+            message = "Invalid phone number format"
+    )
     private String phone;
 
     @NotBlank

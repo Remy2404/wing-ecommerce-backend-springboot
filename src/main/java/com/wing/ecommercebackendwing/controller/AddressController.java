@@ -46,7 +46,7 @@ public class AddressController {
     public ResponseEntity<AddressResponse> updateAddress(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable(name = "id") UUID id,
-            @RequestBody UpdateAddressRequest request) {
+            @Valid @RequestBody UpdateAddressRequest request) {
         return ResponseEntity.ok(addressService.updateAddress(userDetails.getUserId(), id, request));
     }
 

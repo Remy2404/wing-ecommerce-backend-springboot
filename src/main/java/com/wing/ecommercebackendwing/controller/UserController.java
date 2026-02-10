@@ -8,6 +8,7 @@ import com.wing.ecommercebackendwing.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -35,7 +36,7 @@ public class UserController {
     @PutMapping("/profile")
     @Operation(summary = "Update user profile")
     public ResponseEntity<UserResponse> updateProfile(@AuthenticationPrincipal CustomUserDetails userDetails,
-                                                      @RequestBody UpdateProfileRequest updateRequest) {
+                                                      @Valid @RequestBody UpdateProfileRequest updateRequest) {
         UserResponse response = userService.updateProfile(userDetails.getUserId(), updateRequest);
         return ResponseEntity.ok(response);
     }

@@ -46,7 +46,7 @@ public class SavedPaymentMethodController {
     public ResponseEntity<SavedPaymentMethodResponse> updateMethod(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable(name = "id") UUID id,
-            @RequestBody UpdateSavedPaymentMethodRequest request) {
+            @Valid @RequestBody UpdateSavedPaymentMethodRequest request) {
         return ResponseEntity.ok(savedPaymentMethodService.updatePaymentMethod(userDetails.getUserId(), id, request));
     }
 

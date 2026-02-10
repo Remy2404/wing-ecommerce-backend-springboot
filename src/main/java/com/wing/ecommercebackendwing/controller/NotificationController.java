@@ -8,9 +8,12 @@ import com.wing.ecommercebackendwing.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +25,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Tag(name = "Notifications", description = "User notification management APIs")
 @SecurityRequirement(name = "Bearer Authentication")
+@Validated
 public class NotificationController {
 
     private final NotificationService notificationService;
@@ -39,7 +43,8 @@ public class NotificationController {
     @Operation(summary = "Mark notifications as read")
     public ResponseEntity<Void> markAsRead(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @RequestBody List<UUID> notificationIds) {
+            @RequestBody @NotEmpty(message = "notificationIds must not be empty")
+            List<@NotNull(message = "notificationId must not be null") UUID> notificationIds) {
         notificationService.markAsRead(userDetails.getUserId(), notificationIds);
         return ResponseEntity.ok().build();
     }

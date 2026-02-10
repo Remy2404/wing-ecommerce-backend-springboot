@@ -4,6 +4,7 @@ import com.wing.ecommercebackendwing.dto.mapper.SavedPaymentMethodMapper;
 import com.wing.ecommercebackendwing.dto.request.paymentmethod.CreateSavedPaymentMethodRequest;
 import com.wing.ecommercebackendwing.dto.request.paymentmethod.UpdateSavedPaymentMethodRequest;
 import com.wing.ecommercebackendwing.dto.response.user.SavedPaymentMethodResponse;
+import com.wing.ecommercebackendwing.exception.custom.BadRequestException;
 import com.wing.ecommercebackendwing.model.entity.SavedPaymentMethod;
 import com.wing.ecommercebackendwing.model.entity.User;
 import com.wing.ecommercebackendwing.model.enums.PaymentMethod;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -38,7 +40,11 @@ public class SavedPaymentMethodService {
 
         SavedPaymentMethod method = new SavedPaymentMethod();
         method.setUser(user);
-        method.setMethod(PaymentMethod.valueOf(request.getMethod()));
+        try {
+            method.setMethod(PaymentMethod.valueOf(request.getMethod().trim().toUpperCase(Locale.ROOT)));
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("Unsupported payment method");
+        }
         method.setBrand(request.getBrand());
         method.setLast4(request.getLast4());
         method.setExpMonth(request.getExpMonth());
@@ -116,21 +122,21 @@ public class SavedPaymentMethodService {
     private String validateLast4(String last4) {
         String value = last4.trim();
         if (!value.matches("\\d{4}")) {
-            throw new RuntimeException("Invalid last4 digits");
+            throw new BadRequestException("Invalid last4 digits");
         }
         return value;
     }
 
     private Integer validateExpMonth(Integer month) {
         if (month < 1 || month > 12) {
-            throw new RuntimeException("Invalid expiration month");
+            throw new BadRequestException("Invalid expiration month");
         }
         return month;
     }
 
     private Integer validateExpYear(Integer year) {
         if (year < 2000 || year > 2100) {
-            throw new RuntimeException("Invalid expiration year");
+            throw new BadRequestException("Invalid expiration year");
         }
         return year;
     }

@@ -135,7 +135,7 @@ public class AddressService {
 
     private String requireNonBlank(String value, String field) {
         if (value == null || value.trim().isEmpty()) {
-            throw new RuntimeException("Invalid value for " + field);
+            throw new BadRequestException("Invalid value for " + field);
         }
         return value.trim();
     }

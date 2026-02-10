@@ -1,6 +1,7 @@
 package com.wing.ecommercebackendwing.service;
 
 import com.wing.ecommercebackendwing.dto.request.common.NotificationRequest;
+import com.wing.ecommercebackendwing.exception.custom.BadRequestException;
 import com.wing.ecommercebackendwing.model.entity.Notification;
 import com.wing.ecommercebackendwing.model.entity.User;
 import com.wing.ecommercebackendwing.repository.NotificationRepository;
@@ -42,6 +43,9 @@ public class NotificationService {
 
     @Transactional
     public void markAsRead(UUID userId, List<UUID> notificationIds) {
+        if (notificationIds == null || notificationIds.isEmpty()) {
+            throw new BadRequestException("notificationIds must not be empty");
+        }
         List<Notification> notifications = notificationRepository.findAllById(notificationIds);
         notifications.stream()
                 .filter(n -> n.getUser().getId().equals(userId))
