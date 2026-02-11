@@ -55,6 +55,9 @@ public class Payment {
     @Column(name = "expires_at")
     private Instant expiresAt;
 
+    @Column(name = "last_verified_at")
+    private Instant lastVerifiedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 }

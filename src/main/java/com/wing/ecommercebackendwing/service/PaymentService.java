@@ -114,20 +114,15 @@ public class PaymentService {
         // Normalize MD5 to lowercase as some SDKs/APIs might vary in casing
         String normalizedMd5 = md5.trim().toLowerCase();
         
-        Payment payment = paymentRepository.findByMd5(normalizedMd5)
+        Payment payment = paymentRepository.findByMd5AndOrder_User_Id(normalizedMd5, userId)
                 .orElse(null);
 
         if (payment == null) {
-            log.warn("Payment record not found for MD5: {}", normalizedMd5);
+            log.warn("Payment record not found or access denied for MD5: {} by user: {}", normalizedMd5, userId);
             return PaymentVerificationResponse.builder()
                     .isPaid(false)
                     .message("Payment record not found")
                     .build();
-        }
-
-        // Verify ownership
-        if (!payment.getOrder().getUser().getId().equals(userId)) {
-            throw new RuntimeException("Unauthorized: This payment does not belong to you.");
         }
 
         if (payment.getStatus() == PaymentStatus.COMPLETED) {
@@ -161,6 +156,17 @@ public class PaymentService {
                     .build();
         }
 
+        // Check for cooldown (don't hit Bakong API more than once every 5 seconds per transaction)
+        if (payment.getLastVerifiedAt() != null && 
+            Instant.now().minusSeconds(5).isBefore(payment.getLastVerifiedAt())) {
+            log.debug("Verification cooldown active for MD5: {}. Returning last known state.", normalizedMd5);
+            return PaymentVerificationResponse.builder()
+                    .isPaid(false)
+                    .expired(false)
+                    .message("PENDING")
+                    .build();
+        }
+
         String baseUrl = bakongConfig.getApiBaseUrl();
         String url = (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + "v1/check_transaction_by_md5";
         
@@ -171,10 +177,24 @@ public class PaymentService {
         
         log.info("Verifying payment with Bakong Open API for MD5: {}", normalizedMd5);
 
+        // Update last verification attempt time
+        payment.setLastVerifiedAt(Instant.now());
+        paymentRepository.save(payment);
+
         Map<String, String> requestBody = Map.of("md5", normalizedMd5);
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(requestBody, headers);
 
-        return executeVerificationRequest(url, entity, normalizedMd5, payment);
+        PaymentVerificationResponse response = executeVerificationRequest(url, entity, normalizedMd5, payment);
+        
+        // Normalize "not found" or "pending" messages to semantic PENDING
+        if (!response.isPaid() && response.getMessage() != null) {
+            String msg = response.getMessage().toLowerCase();
+            if (msg.contains("not found") || msg.contains("pending") || msg.contains("processing")) {
+                response.setMessage("PENDING");
+            }
+        }
+        
+        return response;
     }
 
 
