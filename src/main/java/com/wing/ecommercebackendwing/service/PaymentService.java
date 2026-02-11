@@ -36,6 +36,7 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final BakongConfig bakongConfig;
     private final RestTemplate restTemplate;
+    private final WingPointsService wingPointsService;
 
 
     @org.springframework.beans.factory.annotation.Value("${khqr.api-token}")
@@ -46,7 +47,8 @@ public class PaymentService {
 
     @Transactional
     public KHQRResultDto generateKHQR(UUID orderId, UUID userId) {
-        Order order = orderRepository.findById(orderId)
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .or(() -> orderRepository.findById(orderId))
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
         if (!order.getUser().getId().equals(userId)) {
@@ -82,7 +84,9 @@ public class PaymentService {
         String md5 = sdkResponse.getData().getMd5();
 
         // Save or update payment record
-        Payment payment = order.getPayment();
+        Payment payment = paymentRepository.findByOrderIdForUpdate(orderId)
+                .or(() -> paymentRepository.findByOrderId(orderId))
+                .orElse(null);
         if (payment == null) {
             payment = new Payment();
             payment.setOrder(order);
@@ -114,7 +118,12 @@ public class PaymentService {
         // Normalize MD5 to lowercase as some SDKs/APIs might vary in casing
         String normalizedMd5 = md5.trim().toLowerCase();
         
-        Payment payment = paymentRepository.findByMd5AndOrder_User_Id(normalizedMd5, userId)
+        Payment payment = paymentRepository.findByMd5AndOrderUserIdForUpdate(normalizedMd5, userId)
+                .or(() -> paymentRepository.findByMd5AndOrder_User_Id(normalizedMd5, userId))
+                .or(() -> paymentRepository.findByMd5(normalizedMd5)
+                        .filter(candidate -> candidate.getOrder() != null
+                                && candidate.getOrder().getUser() != null
+                                && userId.equals(candidate.getOrder().getUser().getId())))
                 .orElse(null);
 
         if (payment == null) {
@@ -264,6 +273,18 @@ public class PaymentService {
                         order.setStatus(OrderStatus.PAID);
                         order.setUpdatedAt(Instant.now());
                         orderRepository.save(order);
+                        if (wingPointsService != null) {
+                            try {
+                                wingPointsService.addPoints(
+                                        order.getUser().getId(),
+                                        null,
+                                        "Points earned from order " + order.getOrderNumber(),
+                                        order.getId()
+                                );
+                            } catch (Exception ex) {
+                                log.error("Failed to award WingPoints for order {}: {}", order.getId(), ex.getMessage());
+                            }
+                        }
                     }
 
                     log.info("Payment verified successfully for transaction {}", transactionId);
@@ -332,6 +353,4 @@ public class PaymentService {
         
         return verifyPaymentByMd5(transactionId.trim(), userId);
     }
-
-
 }

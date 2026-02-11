@@ -9,4 +9,5 @@ import java.util.UUID;
 @Repository
 public interface PromotionUsageRepository extends JpaRepository<PromotionUsage, UUID> {
     int countByPromotionIdAndUserId(UUID promotionId, UUID userId);
+    boolean existsByPromotionIdAndOrderId(UUID promotionId, UUID orderId);
 }

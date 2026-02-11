@@ -1,7 +1,9 @@
 package com.wing.ecommercebackendwing.repository;
 
 import com.wing.ecommercebackendwing.model.entity.ProductVariant;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,4 +23,8 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     @Modifying
     @Query("UPDATE ProductVariant pv SET pv.stock = pv.stock + :quantity WHERE pv.id = :variantId")
     int incrementStock(@Param("variantId") UUID variantId, @Param("quantity") int quantity);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT pv FROM ProductVariant pv WHERE pv.id = :variantId")
+    java.util.Optional<ProductVariant> findByIdForUpdate(@Param("variantId") UUID variantId);
 }

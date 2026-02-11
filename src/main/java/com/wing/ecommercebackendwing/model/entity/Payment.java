@@ -26,7 +26,7 @@ public class Payment {
     @EqualsAndHashCode.Exclude
     private Order order;
 
-    @Column(name = "md5", length = 128)
+    @Column(name = "md5", length = 128, unique = true)
     private String md5;
 
     @Column(name = "transaction_id", unique = true)

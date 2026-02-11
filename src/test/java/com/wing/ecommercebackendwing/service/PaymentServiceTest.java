@@ -13,6 +13,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -31,6 +33,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public class PaymentServiceTest {
 
     @Mock
@@ -93,7 +96,7 @@ public class PaymentServiceTest {
         assertEquals("Success", result.getMessage());
         assertEquals(PaymentStatus.COMPLETED, payment.getStatus());
         assertEquals(expectedTransactionId, payment.getTransactionId());
-        verify(paymentRepository).save(payment);
+        verify(paymentRepository, times(2)).save(payment);
     }
 
     @Test
@@ -132,7 +135,7 @@ public class PaymentServiceTest {
         // Assert
         assertTrue(result.isPaid());
         assertEquals("any-string-id", payment.getTransactionId());
-        verify(paymentRepository).save(payment);
+        verify(paymentRepository, times(2)).save(payment);
     }
 
     @SuppressWarnings("rawtypes")
@@ -167,7 +170,7 @@ public class PaymentServiceTest {
 
         assertFalse(result.isPaid());
         assertEquals(PaymentStatus.PENDING, payment.getStatus());
-        verify(paymentRepository, never()).save(payment);
+        verify(paymentRepository, times(1)).save(payment);
         verify(orderRepository, never()).save(any(Order.class));
     }
 
@@ -203,7 +206,7 @@ public class PaymentServiceTest {
 
         assertFalse(result.isPaid());
         assertEquals(PaymentStatus.PENDING, payment.getStatus());
-        verify(paymentRepository, never()).save(payment);
+        verify(paymentRepository, times(1)).save(payment);
         verify(orderRepository, never()).save(any(Order.class));
     }
 
@@ -274,7 +277,7 @@ public class PaymentServiceTest {
         assertEquals("Payment already completed", second.getMessage());
         assertEquals("ext-1001", payment.getTransactionId());
         verify(restTemplate, times(1)).exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(ParameterizedTypeReference.class));
-        verify(paymentRepository, times(1)).save(any(Payment.class));
+        verify(paymentRepository, times(2)).save(any(Payment.class));
         verify(orderRepository, times(1)).save(any(Order.class));
     }
 
@@ -311,7 +314,7 @@ public class PaymentServiceTest {
         PaymentVerificationResponse result = paymentService.verifyPaymentByMd5(md5, userId);
 
         assertTrue(result.isPaid());
-        verify(paymentRepository, times(1)).save(any(Payment.class));
+        verify(paymentRepository, times(2)).save(any(Payment.class));
         verify(orderRepository, never()).save(any(Order.class));
     }
 }

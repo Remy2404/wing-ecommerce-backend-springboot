@@ -55,6 +55,7 @@ public class OrderService {
     private final TaxService taxService;
     private final DeliveryFeeService deliveryFeeService;
     private final DiscountService discountService;
+    private final WingPointsService wingPointsService;
     private final OrderIdempotencyRecordRepository orderIdempotencyRecordRepository;
     private final ObjectMapper objectMapper;
     private final PhoneNumberService phoneNumberService;
@@ -111,6 +112,10 @@ public class OrderService {
         List<OrderItem> orderItems = new ArrayList<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
         Merchant merchant = null;
+        Map<UUID, Product> lockedProducts = new HashMap<>();
+        Map<UUID, ProductVariant> lockedVariants = new HashMap<>();
+        Map<UUID, Integer> requestedProductStock = new HashMap<>();
+        Map<UUID, Integer> requestedVariantStock = new HashMap<>();
 
         // Try to fetch cart (optional now if items are provided in request)
         Cart cart = cartRepository.findByUserId(userId).orElse(null);
@@ -118,28 +123,29 @@ public class OrderService {
         if (request.getItems() != null && !request.getItems().isEmpty()) {
             // Processing items from request (Buy Now flow)
             for (com.wing.ecommercebackendwing.dto.request.order.OrderItemRequest itemReq : request.getItems()) {
-                Product product = productRepository.findById(itemReq.getProductId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + itemReq.getProductId()));
+                int quantity = itemReq.getQuantity() != null ? itemReq.getQuantity() : 0;
+                if (quantity <= 0) {
+                    throw new BadRequestException("Item quantity must be at least 1");
+                }
+
+                Product product = lockedProducts.computeIfAbsent(
+                        itemReq.getProductId(),
+                        this::findProductForStockReservation
+                );
 
                 ProductVariant variant = null;
                 if (itemReq.getVariantId() != null) {
-                    variant = productVariantRepository.findById(itemReq.getVariantId())
-                            .orElseThrow(() -> new ResourceNotFoundException("Variant not found: " + itemReq.getVariantId()));
+                    UUID variantId = itemReq.getVariantId();
+                    variant = lockedVariants.computeIfAbsent(
+                            variantId,
+                            this::findVariantForStockReservation
+                    );
                     if (!variant.getProduct().getId().equals(product.getId())) {
                         throw new BadRequestException("Variant does not belong to the specified product");
                     }
-                }
-
-                int updatedRows;
-                if (variant != null) {
-                    updatedRows = productVariantRepository.decrementStockIfAvailable(variant.getId(), itemReq.getQuantity());
+                    requestedVariantStock.merge(variantId, quantity, Integer::sum);
                 } else {
-                    updatedRows = productRepository.decrementStockIfAvailable(product.getId(), itemReq.getQuantity());
-                }
-                if (updatedRows == 0) {
-                    log.error("Insufficient stock for product {}. Current: {}, Requested: {}", 
-                        product.getName(), product.getStockQuantity(), itemReq.getQuantity());
-                    throw new BadRequestException("Insufficient stock for product " + product.getName());
+                    requestedProductStock.merge(product.getId(), quantity, Integer::sum);
                 }
 
                 // Price
@@ -158,10 +164,10 @@ public class OrderService {
                 orderItem.setProductName(product.getName());
                 orderItem.setProductImage(product.getImages());
                 orderItem.setVariantName(variant != null ? variant.getName() : null);
-                orderItem.setQuantity(itemReq.getQuantity());
+                orderItem.setQuantity(quantity);
                 orderItem.setUnitPrice(price);
 
-                BigDecimal itemSubtotal = price.multiply(new BigDecimal(itemReq.getQuantity()));
+                BigDecimal itemSubtotal = price.multiply(BigDecimal.valueOf(quantity));
                 orderItem.setSubtotal(itemSubtotal);
                 orderItem.setCreatedAt(Instant.now());
                 orderItem.setUpdatedAt(Instant.now());
@@ -172,19 +178,28 @@ public class OrderService {
         } else if (cart != null && !cart.getItems().isEmpty()) {
             // Checkout from cart flow
             for (com.wing.ecommercebackendwing.model.entity.CartItem cartItem : cart.getItems()) {
-                Product product = cartItem.getProduct();
-                ProductVariant variant = cartItem.getVariant();
-
-                int updatedRows;
-                if (variant != null) {
-                    updatedRows = productVariantRepository.decrementStockIfAvailable(variant.getId(), cartItem.getQuantity());
-                } else {
-                    updatedRows = productRepository.decrementStockIfAvailable(product.getId(), cartItem.getQuantity());
+                int quantity = cartItem.getQuantity() != null ? cartItem.getQuantity() : 0;
+                if (quantity <= 0) {
+                    throw new BadRequestException("Cart contains an invalid quantity for product");
                 }
-                if (updatedRows == 0) {
-                    log.error("Insufficient stock for product {} in cart. Current: {}, Requested: {}", 
-                        product.getName(), product.getStockQuantity(), cartItem.getQuantity());
-                    throw new BadRequestException("Insufficient stock for product " + product.getName() + " in your cart");
+
+                Product product = lockedProducts.computeIfAbsent(
+                        cartItem.getProduct().getId(),
+                        id -> findProductForStockReservation(id, cartItem.getProduct())
+                );
+                ProductVariant variant = null;
+                if (cartItem.getVariant() != null) {
+                    UUID variantId = cartItem.getVariant().getId();
+                    variant = lockedVariants.computeIfAbsent(
+                            variantId,
+                            id -> findVariantForStockReservation(id, cartItem.getVariant())
+                    );
+                    if (!variant.getProduct().getId().equals(product.getId())) {
+                        throw new BadRequestException("Variant does not belong to the specified product");
+                    }
+                    requestedVariantStock.merge(variantId, quantity, Integer::sum);
+                } else {
+                    requestedProductStock.merge(product.getId(), quantity, Integer::sum);
                 }
 
                 // Merchant Validation
@@ -200,10 +215,13 @@ public class OrderService {
                 orderItem.setProductName(product.getName());
                 orderItem.setProductImage(product.getImages());
                 orderItem.setVariantName(variant != null ? variant.getName() : null);
-                orderItem.setQuantity(cartItem.getQuantity());
-                orderItem.setUnitPrice(cartItem.getPrice());
+                orderItem.setQuantity(quantity);
+                BigDecimal unitPrice = cartItem.getPrice() != null
+                        ? cartItem.getPrice()
+                        : (variant != null ? variant.getPrice() : product.getPrice());
+                orderItem.setUnitPrice(unitPrice);
 
-                BigDecimal itemSubtotal = cartItem.getPrice().multiply(new BigDecimal(cartItem.getQuantity()));
+                BigDecimal itemSubtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
                 orderItem.setSubtotal(itemSubtotal);
                 orderItem.setCreatedAt(Instant.now());
                 orderItem.setUpdatedAt(Instant.now());
@@ -214,6 +232,8 @@ public class OrderService {
         } else {
             throw new BadRequestException("No items provided and no cart found");
         }
+
+        reserveLockedStock(lockedProducts, requestedProductStock, lockedVariants, requestedVariantStock);
 
         if (merchant == null) {
             throw new BadRequestException("Product merchant not found");
@@ -274,7 +294,17 @@ public class OrderService {
         BigDecimal tax = taxService.calculateTax(subtotal);
         BigDecimal deliveryFee = deliveryFeeService.calculateFee(
                 request.getDistanceKm() != null ? request.getDistanceKm() : BigDecimal.ZERO);
-        BigDecimal discount = discountService.calculateDiscount(subtotal, request.getCouponCode());
+        DiscountService.AppliedDiscount appliedDiscount =
+                discountService.resolveDiscountForCheckout(subtotal, request.getCouponCode(), userId);
+        if (appliedDiscount == null) {
+            BigDecimal fallbackDiscount = discountService.calculateDiscount(subtotal, request.getCouponCode());
+            appliedDiscount = new DiscountService.AppliedDiscount(
+                    null,
+                    fallbackDiscount != null ? fallbackDiscount : BigDecimal.ZERO,
+                    request.getCouponCode()
+            );
+        }
+        BigDecimal discount = appliedDiscount.amount();
 
         BigDecimal total = subtotal.add(deliveryFee).add(tax).subtract(discount);
 
@@ -287,6 +317,7 @@ public class OrderService {
 
         // Save order
         Order savedOrder = orderRepository.save(order);
+        discountService.recordPromotionUsage(appliedDiscount, userId, savedOrder);
 
         // Clear cart ONLY if we checked out FROM the cart
         if (request.getItems() == null || request.getItems().isEmpty()) {
@@ -397,6 +428,9 @@ public class OrderService {
 
         if (newStatus == OrderStatus.CANCELLED && previousStatus != OrderStatus.CANCELLED) {
             restoreStockForCancelledOrder(order);
+            if (wingPointsService != null) {
+                wingPointsService.revokeEarnedPointsForOrder(order.getUser().getId(), order.getId());
+            }
         }
 
         order.setStatus(newStatus);
@@ -413,6 +447,91 @@ public class OrderService {
 
         log.info("Updated order {} status to {} by user {}", orderId, newStatus, requestingUserId);
         return OrderMapper.toResponse(savedOrder);
+    }
+
+    private Product findProductForStockReservation(UUID productId) {
+        return productRepository.findByIdForUpdate(productId)
+                .or(() -> productRepository.findById(productId))
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + productId));
+    }
+
+    private Product findProductForStockReservation(UUID productId, Product fallbackProduct) {
+        Optional<Product> resolved = productRepository.findByIdForUpdate(productId)
+                .or(() -> productRepository.findById(productId));
+        if (resolved.isPresent()) {
+            return resolved.get();
+        }
+        if (fallbackProduct != null && productId.equals(fallbackProduct.getId())) {
+            return fallbackProduct;
+        }
+        throw new ResourceNotFoundException("Product not found: " + productId);
+    }
+
+    private ProductVariant findVariantForStockReservation(UUID variantId) {
+        return productVariantRepository.findByIdForUpdate(variantId)
+                .or(() -> productVariantRepository.findById(variantId))
+                .orElseThrow(() -> new ResourceNotFoundException("Variant not found: " + variantId));
+    }
+
+    private ProductVariant findVariantForStockReservation(UUID variantId, ProductVariant fallbackVariant) {
+        Optional<ProductVariant> resolved = productVariantRepository.findByIdForUpdate(variantId)
+                .or(() -> productVariantRepository.findById(variantId));
+        if (resolved.isPresent()) {
+            return resolved.get();
+        }
+        if (fallbackVariant != null && variantId.equals(fallbackVariant.getId())) {
+            return fallbackVariant;
+        }
+        throw new ResourceNotFoundException("Variant not found: " + variantId);
+    }
+
+    private void reserveLockedStock(Map<UUID, Product> lockedProducts,
+                                    Map<UUID, Integer> requestedProductStock,
+                                    Map<UUID, ProductVariant> lockedVariants,
+                                    Map<UUID, Integer> requestedVariantStock) {
+        for (Map.Entry<UUID, Integer> entry : requestedVariantStock.entrySet()) {
+            UUID variantId = entry.getKey();
+            int requested = entry.getValue();
+            ProductVariant variant = lockedVariants.get(variantId);
+            int available = variant != null && variant.getStock() != null ? variant.getStock() : 0;
+            if (variant == null || available < requested) {
+                String productName = (variant != null && variant.getProduct() != null)
+                        ? variant.getProduct().getName()
+                        : "selected variant";
+                throw new BadRequestException("Insufficient stock for product " + productName);
+            }
+        }
+
+        for (Map.Entry<UUID, Integer> entry : requestedProductStock.entrySet()) {
+            UUID productId = entry.getKey();
+            int requested = entry.getValue();
+            Product product = lockedProducts.get(productId);
+            int available = product != null && product.getStockQuantity() != null ? product.getStockQuantity() : 0;
+            if (product == null || available < requested) {
+                String productName = product != null ? product.getName() : "selected product";
+                throw new BadRequestException("Insufficient stock for product " + productName);
+            }
+        }
+
+        for (Map.Entry<UUID, Integer> entry : requestedVariantStock.entrySet()) {
+            int updatedRows = productVariantRepository.decrementStockIfAvailable(entry.getKey(), entry.getValue());
+            if (updatedRows == 0) {
+                ProductVariant variant = lockedVariants.get(entry.getKey());
+                String productName = (variant != null && variant.getProduct() != null)
+                        ? variant.getProduct().getName()
+                        : "selected variant";
+                throw new BadRequestException("Insufficient stock for product " + productName);
+            }
+        }
+
+        for (Map.Entry<UUID, Integer> entry : requestedProductStock.entrySet()) {
+            int updatedRows = productRepository.decrementStockIfAvailable(entry.getKey(), entry.getValue());
+            if (updatedRows == 0) {
+                Product product = lockedProducts.get(entry.getKey());
+                String productName = product != null ? product.getName() : "selected product";
+                throw new BadRequestException("Insufficient stock for product " + productName);
+            }
+        }
     }
 
     private boolean isTransitionAllowed(OrderStatus currentStatus, OrderStatus newStatus) {
