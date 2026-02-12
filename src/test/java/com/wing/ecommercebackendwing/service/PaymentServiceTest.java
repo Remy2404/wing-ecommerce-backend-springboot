@@ -44,6 +44,8 @@ public class PaymentServiceTest {
     private BakongConfig bakongConfig;
     @Mock
     private RestTemplate restTemplate;
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private PaymentService paymentService;
@@ -61,11 +63,13 @@ public class PaymentServiceTest {
     @Test
     void verifyPaymentByMd5_ShouldExtractTransactionId() {
         // Arrange
+        UUID orderId = UUID.randomUUID();
         Payment payment = new Payment();
         payment.setMd5(md5);
         payment.setAmount(new BigDecimal("12.50"));
         payment.setCurrency("USD");
         Order order = new Order();
+        order.setId(orderId);
         com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
         user.setId(userId);
         order.setUser(user);
@@ -97,16 +101,25 @@ public class PaymentServiceTest {
         assertEquals(PaymentStatus.COMPLETED, payment.getStatus());
         assertEquals(expectedTransactionId, payment.getTransactionId());
         verify(paymentRepository, times(2)).save(payment);
+        verify(notificationService).sendNotification(
+                eq(userId),
+                eq("Payment Successful"),
+                eq("Payment for order #[" + orderId + "] was successful"),
+                eq("PAYMENT"),
+                eq(orderId)
+        );
     }
 
     @Test
     void verifyPaymentByMd5_ShouldSaveTransactionIdAsString() {
         // Arrange
+        UUID orderId = UUID.randomUUID();
         Payment payment = new Payment();
         payment.setMd5(md5);
         payment.setAmount(new BigDecimal("12.50"));
         payment.setCurrency("USD");
         Order order = new Order();
+        order.setId(orderId);
         com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
         user.setId(userId);
         order.setUser(user);
@@ -136,16 +149,25 @@ public class PaymentServiceTest {
         assertTrue(result.isPaid());
         assertEquals("any-string-id", payment.getTransactionId());
         verify(paymentRepository, times(2)).save(payment);
+        verify(notificationService).sendNotification(
+                eq(userId),
+                eq("Payment Successful"),
+                eq("Payment for order #[" + orderId + "] was successful"),
+                eq("PAYMENT"),
+                eq(orderId)
+        );
     }
 
     @SuppressWarnings("rawtypes")
     @Test
     void verifyPaymentByMd5_ShouldNotComplete_WhenAmountMismatch() {
+        UUID orderId = UUID.randomUUID();
         Payment payment = new Payment();
         payment.setMd5(md5);
         payment.setAmount(new BigDecimal("12.50"));
         payment.setCurrency("USD");
         Order order = new Order();
+        order.setId(orderId);
         com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
         user.setId(userId);
         order.setUser(user);
@@ -172,16 +194,19 @@ public class PaymentServiceTest {
         assertEquals(PaymentStatus.PENDING, payment.getStatus());
         verify(paymentRepository, times(1)).save(payment);
         verify(orderRepository, never()).save(any(Order.class));
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 
     @SuppressWarnings("rawtypes")
     @Test
     void verifyPaymentByMd5_ShouldNotComplete_WhenCurrencyMismatch() {
+        UUID orderId = UUID.randomUUID();
         Payment payment = new Payment();
         payment.setMd5(md5);
         payment.setAmount(new BigDecimal("12.50"));
         payment.setCurrency("USD");
         Order order = new Order();
+        order.setId(orderId);
         com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
         user.setId(userId);
         order.setUser(user);
@@ -208,10 +233,12 @@ public class PaymentServiceTest {
         assertEquals(PaymentStatus.PENDING, payment.getStatus());
         verify(paymentRepository, times(1)).save(payment);
         verify(orderRepository, never()).save(any(Order.class));
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 
     @Test
     void verifyPaymentByMd5_WhenAlreadyCompleted_ShouldShortCircuitWithoutGatewayOrWrites() {
+        UUID orderId = UUID.randomUUID();
         Payment payment = new Payment();
         payment.setMd5(md5);
         payment.setAmount(new BigDecimal("12.50"));
@@ -220,6 +247,7 @@ public class PaymentServiceTest {
         payment.setPaidAt(java.time.Instant.now());
         payment.setTransactionId("tx-final");
         Order order = new Order();
+        order.setId(orderId);
         com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
         user.setId(userId);
         order.setUser(user);
@@ -237,17 +265,20 @@ public class PaymentServiceTest {
         verify(restTemplate, never()).exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(ParameterizedTypeReference.class));
         verify(paymentRepository, never()).save(any(Payment.class));
         verify(orderRepository, never()).save(any(Order.class));
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 
     @SuppressWarnings("rawtypes")
     @Test
     void verifyPaymentByMd5_Twice_ShouldBeIdempotentAndSecondCallHasNoSideEffects() {
+        UUID orderId = UUID.randomUUID();
         Payment payment = new Payment();
         payment.setMd5(md5);
         payment.setAmount(new BigDecimal("12.50"));
         payment.setCurrency("USD");
         payment.setStatus(PaymentStatus.PENDING);
         Order order = new Order();
+        order.setId(orderId);
         com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
         user.setId(userId);
         order.setUser(user);
@@ -279,17 +310,26 @@ public class PaymentServiceTest {
         verify(restTemplate, times(1)).exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(ParameterizedTypeReference.class));
         verify(paymentRepository, times(2)).save(any(Payment.class));
         verify(orderRepository, times(1)).save(any(Order.class));
+        verify(notificationService, times(1)).sendNotification(
+                eq(userId),
+                eq("Payment Successful"),
+                eq("Payment for order #[" + orderId + "] was successful"),
+                eq("PAYMENT"),
+                eq(orderId)
+        );
     }
 
     @SuppressWarnings("rawtypes")
     @Test
     void verifyPaymentByMd5_WhenOrderAlreadyPaid_ShouldNotReapplyOrderUpdate() {
+        UUID orderId = UUID.randomUUID();
         Payment payment = new Payment();
         payment.setMd5(md5);
         payment.setAmount(new BigDecimal("12.50"));
         payment.setCurrency("USD");
         payment.setStatus(PaymentStatus.PENDING);
         Order order = new Order();
+        order.setId(orderId);
         com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
         user.setId(userId);
         order.setUser(user);
@@ -316,5 +356,88 @@ public class PaymentServiceTest {
         assertTrue(result.isPaid());
         verify(paymentRepository, times(2)).save(any(Payment.class));
         verify(orderRepository, never()).save(any(Order.class));
+        verify(notificationService, times(1)).sendNotification(
+                eq(userId),
+                eq("Payment Successful"),
+                eq("Payment for order #[" + orderId + "] was successful"),
+                eq("PAYMENT"),
+                eq(orderId)
+        );
+    }
+
+    @Test
+    void verifyPaymentByMd5_WhenExpired_ShouldNotifyPaymentFailed() {
+        UUID orderId = UUID.randomUUID();
+        Payment payment = new Payment();
+        payment.setMd5(md5);
+        payment.setAmount(new BigDecimal("12.50"));
+        payment.setCurrency("USD");
+        payment.setStatus(PaymentStatus.PENDING);
+        payment.setExpiresAt(java.time.Instant.now().minusSeconds(1));
+        Order order = new Order();
+        order.setId(orderId);
+        com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
+        user.setId(userId);
+        order.setUser(user);
+        payment.setOrder(order);
+
+        when(paymentRepository.findByMd5(anyString())).thenReturn(Optional.of(payment));
+
+        PaymentVerificationResponse result = paymentService.verifyPaymentByMd5(md5, userId);
+
+        assertFalse(result.isPaid());
+        assertTrue(result.isExpired());
+        assertEquals(PaymentStatus.EXPIRED, payment.getStatus());
+        verify(paymentRepository, times(1)).save(payment);
+        verify(notificationService).sendNotification(
+                eq(userId),
+                eq("Payment Failed"),
+                eq("Payment for order #[" + orderId + "] has failed. Please retry."),
+                eq("PAYMENT"),
+                eq(orderId)
+        );
+    }
+
+    @SuppressWarnings("rawtypes")
+    @Test
+    void verifyPaymentByMd5_ShouldSucceedWhenNotificationDispatchFails() {
+        UUID orderId = UUID.randomUUID();
+        Payment payment = new Payment();
+        payment.setMd5(md5);
+        payment.setAmount(new BigDecimal("12.50"));
+        payment.setCurrency("USD");
+        payment.setStatus(PaymentStatus.PENDING);
+        Order order = new Order();
+        order.setId(orderId);
+        com.wing.ecommercebackendwing.model.entity.User user = new com.wing.ecommercebackendwing.model.entity.User();
+        user.setId(userId);
+        order.setUser(user);
+        order.setStatus(com.wing.ecommercebackendwing.model.enums.OrderStatus.PENDING);
+        payment.setOrder(order);
+
+        when(paymentRepository.findByMd5(anyString())).thenReturn(Optional.of(payment));
+
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("responseCode", "0");
+        responseBody.put("responseMessage", "Success");
+        Map<String, Object> data = new HashMap<>();
+        data.put("transactionId", "tx-1001");
+        data.put("amount", "12.50");
+        data.put("currency", "USD");
+        responseBody.put("data", data);
+
+        ResponseEntity<Map<String, Object>> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(ParameterizedTypeReference.class)))
+                .thenReturn((ResponseEntity) responseEntity);
+        doThrow(new RuntimeException("notification down"))
+                .when(notificationService)
+                .sendNotification(any(), anyString(), anyString(), anyString(), any());
+
+        PaymentVerificationResponse result = paymentService.verifyPaymentByMd5(md5, userId);
+
+        assertTrue(result.isPaid());
+        assertEquals(PaymentStatus.COMPLETED, payment.getStatus());
+        verify(paymentRepository, times(2)).save(any(Payment.class));
+        verify(orderRepository, times(1)).save(any(Order.class));
     }
 }

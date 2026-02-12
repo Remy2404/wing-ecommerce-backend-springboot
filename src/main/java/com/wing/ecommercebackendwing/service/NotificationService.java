@@ -21,6 +21,16 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
 
+    public void sendNotification(UUID userId, String title, String message, String type, UUID relatedId) {
+        NotificationRequest request = NotificationRequest.builder()
+                .title(title)
+                .message(message)
+                .type(type)
+                .relatedId(relatedId)
+                .build();
+        sendNotification(userId, request);
+    }
+
     public void sendNotification(UUID userId, NotificationRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));

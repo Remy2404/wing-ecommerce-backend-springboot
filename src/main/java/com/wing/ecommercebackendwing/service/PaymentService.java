@@ -5,6 +5,7 @@ import com.wing.ecommercebackendwing.dto.response.payment.KHQRResultDto;
 import com.wing.ecommercebackendwing.dto.response.payment.PaymentVerificationResponse;
 import com.wing.ecommercebackendwing.model.entity.Order;
 import com.wing.ecommercebackendwing.model.entity.Payment;
+import com.wing.ecommercebackendwing.model.enums.NotificationType;
 import com.wing.ecommercebackendwing.model.enums.OrderStatus;
 import com.wing.ecommercebackendwing.model.enums.PaymentMethod;
 import com.wing.ecommercebackendwing.model.enums.PaymentStatus;
@@ -37,6 +38,7 @@ public class PaymentService {
     private final BakongConfig bakongConfig;
     private final RestTemplate restTemplate;
     private final WingPointsService wingPointsService;
+    private final NotificationService notificationService;
 
 
     @org.springframework.beans.factory.annotation.Value("${khqr.api-token}")
@@ -158,6 +160,7 @@ public class PaymentService {
             payment.setStatus(PaymentStatus.EXPIRED);
             payment.setGatewayResponse("KHQR timeout reached");
             paymentRepository.save(payment);
+            sendPaymentFailedNotification(payment);
             return PaymentVerificationResponse.builder()
                     .isPaid(false)
                     .expired(true)
@@ -286,6 +289,7 @@ public class PaymentService {
                             }
                         }
                     }
+                    sendPaymentSuccessfulNotification(order);
 
                     log.info("Payment verified successfully for transaction {}", transactionId);
                     
@@ -339,6 +343,64 @@ public class PaymentService {
         return status == OrderStatus.PAID
                 || status == OrderStatus.CANCELLED
                 || status == OrderStatus.DELIVERED;
+    }
+
+    private void sendPaymentSuccessfulNotification(Order order) {
+        if (order == null) {
+            log.error("Skipping payment success notification because order is null");
+            return;
+        }
+        UUID orderId = order.getId();
+        UUID userId = order.getUser() != null ? order.getUser().getId() : null;
+        if (orderId == null || userId == null) {
+            log.error("Skipping payment success notification due to missing context. orderId={} userId={}", orderId, userId);
+            return;
+        }
+        safelySendNotification(
+                userId,
+                orderId,
+                "PAYMENT_SUCCESS",
+                "Payment Successful",
+                "Payment for order #[" + orderId + "] was successful",
+                NotificationType.PAYMENT
+        );
+    }
+
+    private void sendPaymentFailedNotification(Payment payment) {
+        if (payment == null || payment.getOrder() == null) {
+            log.error("Skipping payment failed notification because payment/order context is missing");
+            return;
+        }
+        Order order = payment.getOrder();
+        UUID orderId = order.getId();
+        UUID userId = order.getUser() != null ? order.getUser().getId() : null;
+        if (orderId == null || userId == null) {
+            log.error("Skipping payment failed notification due to missing context. orderId={} userId={}", orderId, userId);
+            return;
+        }
+        safelySendNotification(
+                userId,
+                orderId,
+                "PAYMENT_FAILED",
+                "Payment Failed",
+                "Payment for order #[" + orderId + "] has failed. Please retry.",
+                NotificationType.PAYMENT
+        );
+    }
+
+    private void safelySendNotification(UUID userId, UUID orderId, String trigger, String title, String message, NotificationType type) {
+        try {
+            notificationService.sendNotification(userId, title, message, type.name(), orderId);
+        } catch (RuntimeException exception) {
+            log.error(
+                    "Failed to send notification. trigger={} orderId={} userId={} reason={}",
+                    trigger,
+                    orderId,
+                    userId,
+                    exception.getMessage(),
+                    exception
+            );
+        }
     }
 
     @Transactional

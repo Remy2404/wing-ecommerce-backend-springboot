@@ -91,6 +91,16 @@ erDiagram
         timestamp created_at
     }
 
+    ORDER_IDEMPOTENCY_RECORDS {
+        uuid id PK
+        uuid user_id FK
+        string idempotency_key
+        string request_hash
+        uuid order_id FK UK
+        timestamp created_at
+        timestamp updated_at
+    }
+
     ORDER_ITEMS {
         uuid id PK
         uuid order_id FK
@@ -198,6 +208,7 @@ erDiagram
     USERS ||--o{ WING_POINTS_TRANSACTIONS : earns_spends
     USERS ||--o{ PROMOTION_USAGE : uses
     USERS ||--o{ WISHLISTS : wishes
+    USERS ||--o{ ORDER_IDEMPOTENCY_RECORDS : idempotency_keys
 
     ADDRESSES |o--o{ MERCHANTS : located_at
     ADDRESSES ||--o{ ORDERS : ships_to
@@ -225,7 +236,7 @@ erDiagram
     ORDERS ||--o{ PROMOTION_USAGE : discount_applied
     ORDERS |o--o{ REVIEWS : verified_by
     ORDERS |o--o{ WING_POINTS_TRANSACTIONS : related_order
+    ORDERS |o--o| ORDER_IDEMPOTENCY_RECORDS : idempotent_request
 
     PROMOTIONS ||--o{ PROMOTION_USAGE : used_in
 ```
-

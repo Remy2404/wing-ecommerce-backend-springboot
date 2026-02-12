@@ -7,6 +7,7 @@ import com.wing.ecommercebackendwing.exception.custom.BadRequestException;
 import com.wing.ecommercebackendwing.exception.custom.ForbiddenException;
 import com.wing.ecommercebackendwing.exception.custom.ResourceNotFoundException;
 import com.wing.ecommercebackendwing.model.entity.*;
+import com.wing.ecommercebackendwing.model.enums.NotificationType;
 import com.wing.ecommercebackendwing.model.enums.OrderStatus;
 import com.wing.ecommercebackendwing.repository.*;
 import com.wing.ecommercebackendwing.util.OrderNumberGenerator;
@@ -59,6 +60,7 @@ public class OrderService {
     private final OrderIdempotencyRecordRepository orderIdempotencyRecordRepository;
     private final ObjectMapper objectMapper;
     private final PhoneNumberService phoneNumberService;
+    private final NotificationService notificationService;
 
     @Transactional
     public OrderResponse createOrder(UUID userId, CreateOrderRequest request) {
@@ -346,6 +348,7 @@ public class OrderService {
             }
         }
 
+        sendOrderPlacedNotification(savedOrder);
         log.info("Created order {} for user {}", savedOrder.getOrderNumber(), userId);
         return savedOrder;
     }
@@ -464,6 +467,10 @@ public class OrderService {
         order.setUpdatedAt(Instant.now());
         Order savedOrder = orderRepository.save(order);
 
+        if (previousStatus != newStatus) {
+            sendOrderStatusUpdatedNotification(savedOrder, newStatus);
+        }
+
         log.info("Updated order {} status to {} by user {}", orderId, newStatus, requestingUserId);
         return OrderMapper.toResponse(savedOrder);
     }
@@ -577,6 +584,55 @@ public class OrderService {
             } else if (item.getProduct() != null) {
                 productRepository.incrementStock(item.getProduct().getId(), quantity);
             }
+        }
+    }
+
+    private void sendOrderPlacedNotification(Order order) {
+        UUID orderId = order.getId();
+        UUID userId = order.getUser() != null ? order.getUser().getId() : null;
+        if (orderId == null || userId == null) {
+            log.error("Skipping order placed notification due to missing context. orderId={} userId={}", orderId, userId);
+            return;
+        }
+        safelySendNotification(
+                userId,
+                orderId,
+                "ORDER_CREATED",
+                "Order Placed",
+                "Your order #[" + orderId + "] has been placed successfully",
+                NotificationType.ORDER
+        );
+    }
+
+    private void sendOrderStatusUpdatedNotification(Order order, OrderStatus newStatus) {
+        UUID orderId = order.getId();
+        UUID userId = order.getUser() != null ? order.getUser().getId() : null;
+        if (orderId == null || userId == null) {
+            log.error("Skipping order status notification due to missing context. orderId={} userId={}", orderId, userId);
+            return;
+        }
+        safelySendNotification(
+                userId,
+                orderId,
+                "ORDER_STATUS_UPDATED",
+                "Order Status Updated",
+                "Your order #[" + orderId + "] status changed to " + newStatus,
+                NotificationType.ORDER_STATUS
+        );
+    }
+
+    private void safelySendNotification(UUID userId, UUID orderId, String trigger, String title, String message, NotificationType type) {
+        try {
+            notificationService.sendNotification(userId, title, message, type.name(), orderId);
+        } catch (RuntimeException exception) {
+            log.error(
+                    "Failed to send notification. trigger={} orderId={} userId={} reason={}",
+                    trigger,
+                    orderId,
+                    userId,
+                    exception.getMessage(),
+                    exception
+            );
         }
     }
 

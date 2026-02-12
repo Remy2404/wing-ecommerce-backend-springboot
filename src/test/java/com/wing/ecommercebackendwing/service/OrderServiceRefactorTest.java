@@ -49,6 +49,7 @@ public class OrderServiceRefactorTest {
     @Mock private OrderIdempotencyRecordRepository orderIdempotencyRecordRepository;
     @Mock private ObjectMapper objectMapper;
     @Mock private PhoneNumberService phoneNumberService;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks
     private OrderService orderService;
@@ -81,6 +82,7 @@ public class OrderServiceRefactorTest {
     @Test
     void createOrder_BuyNow_ShouldDecrementStockAndKeepCart() {
         // Arrange
+        UUID createdOrderId = UUID.randomUUID();
         OrderItemRequest itemReq = new OrderItemRequest();
         itemReq.setProductId(productId);
         itemReq.setQuantity(2);
@@ -107,7 +109,11 @@ public class OrderServiceRefactorTest {
         when(taxService.calculateTax(any())).thenReturn(BigDecimal.ZERO);
         when(deliveryFeeService.calculateFee(any())).thenReturn(BigDecimal.ZERO);
         when(discountService.calculateDiscount(any(), any())).thenReturn(BigDecimal.ZERO);
-        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> {
+            Order order = i.getArgument(0);
+            order.setId(createdOrderId);
+            return order;
+        });
 
         // Act
         OrderResponse result = orderService.createOrder(userId, request);
@@ -116,6 +122,13 @@ public class OrderServiceRefactorTest {
         verify(productRepository).decrementStockIfAvailable(productId, 2);
         verify(productRepository, never()).save(any(Product.class));
         verify(cartRepository, never()).save(cart); // Cart should NOT be saved/cleared
+        verify(notificationService).sendNotification(
+                eq(userId),
+                eq("Order Placed"),
+                eq("Your order #[" + createdOrderId + "] has been placed successfully"),
+                eq("ORDER"),
+                eq(createdOrderId)
+        );
         assertNotNull(result);
         assertEquals("ORD-123", result.getOrderNumber());
     }
@@ -123,6 +136,7 @@ public class OrderServiceRefactorTest {
     @Test
     void createOrder_FromCart_ShouldDecrementStockAndClearCart() {
         // Arrange
+        UUID createdOrderId = UUID.randomUUID();
         CreateOrderRequest request = new CreateOrderRequest();
         request.setItems(null);
         request.setShippingAddress(ShippingAddressRequest.builder()
@@ -151,7 +165,11 @@ public class OrderServiceRefactorTest {
         when(taxService.calculateTax(any())).thenReturn(BigDecimal.ZERO);
         when(deliveryFeeService.calculateFee(any())).thenReturn(BigDecimal.ZERO);
         when(discountService.calculateDiscount(any(), any())).thenReturn(BigDecimal.ZERO);
-        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> {
+            Order order = i.getArgument(0);
+            order.setId(createdOrderId);
+            return order;
+        });
 
         // Act
         OrderResponse result = orderService.createOrder(userId, request);
@@ -161,6 +179,13 @@ public class OrderServiceRefactorTest {
         verify(productRepository, never()).save(any(Product.class));
         assertTrue(cart.getItems().isEmpty());
         verify(cartRepository).save(cart); // Cart SHOULD be cleared
+        verify(notificationService).sendNotification(
+                eq(userId),
+                eq("Order Placed"),
+                eq("Your order #[" + createdOrderId + "] has been placed successfully"),
+                eq("ORDER"),
+                eq(createdOrderId)
+        );
     }
 
     @Test
@@ -193,6 +218,7 @@ public class OrderServiceRefactorTest {
 
         // Act & Assert
         assertThrows(RuntimeException.class, () -> orderService.createOrder(userId, request));
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -235,6 +261,7 @@ public class OrderServiceRefactorTest {
         verify(orderRepository, never()).save(any(Order.class));
         verify(cartRepository, never()).save(any(Cart.class));
         verify(addressRepository, never()).save(any(Address.class));
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -264,6 +291,7 @@ public class OrderServiceRefactorTest {
         verify(addressRepository, never()).save(any(Address.class));
         verify(cartRepository, never()).save(any(Cart.class));
         verify(productVariantRepository, never()).decrementStockIfAvailable(any(UUID.class), anyInt());
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -316,6 +344,7 @@ public class OrderServiceRefactorTest {
         verify(orderRepository, never()).save(any(Order.class));
         verify(productRepository, never()).decrementStockIfAvailable(any(UUID.class), anyInt());
         verify(productVariantRepository, never()).decrementStockIfAvailable(any(UUID.class), anyInt());
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -346,6 +375,7 @@ public class OrderServiceRefactorTest {
         verify(orderIdempotencyRecordRepository, never()).save(any(OrderIdempotencyRecord.class));
         verify(productRepository, never()).decrementStockIfAvailable(any(UUID.class), anyInt());
         verify(productVariantRepository, never()).decrementStockIfAvailable(any(UUID.class), anyInt());
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -373,6 +403,7 @@ public class OrderServiceRefactorTest {
                 () -> orderService.updateOrderStatus(orderId, OrderStatus.PENDING, admin.getId()));
 
         verify(orderRepository, never()).save(any(Order.class));
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -401,6 +432,13 @@ public class OrderServiceRefactorTest {
 
         assertEquals("CONFIRMED", response.getStatus());
         verify(orderRepository).save(any(Order.class));
+        verify(notificationService).sendNotification(
+                eq(userId),
+                eq("Order Status Updated"),
+                eq("Your order #[" + orderId + "] status changed to CONFIRMED"),
+                eq("ORDER_STATUS"),
+                eq(orderId)
+        );
     }
 
     @Test
@@ -425,6 +463,7 @@ public class OrderServiceRefactorTest {
         assertThrows(BadRequestException.class,
                 () -> orderService.updateOrderStatus(orderId, OrderStatus.CANCELLED, userId));
         verify(orderRepository, never()).save(any(Order.class));
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -464,6 +503,13 @@ public class OrderServiceRefactorTest {
         verify(productRepository).incrementStock(orderProductId, 3);
         verify(productVariantRepository, never()).incrementStock(any(UUID.class), anyInt());
         verify(orderRepository).save(any(Order.class));
+        verify(notificationService).sendNotification(
+                eq(userId),
+                eq("Order Status Updated"),
+                eq("Your order #[" + orderId + "] status changed to CANCELLED"),
+                eq("ORDER_STATUS"),
+                eq(orderId)
+        );
     }
 
     @Test
@@ -504,6 +550,7 @@ public class OrderServiceRefactorTest {
         verify(productRepository, never()).incrementStock(orderProductId, 2);
         verify(productVariantRepository, never()).incrementStock(any(UUID.class), anyInt());
         verify(orderRepository).save(any(Order.class));
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -536,6 +583,7 @@ public class OrderServiceRefactorTest {
         assertThrows(ForbiddenException.class,
                 () -> orderService.updateOrderStatus(orderId, OrderStatus.CANCELLED, userId));
         verify(orderRepository, never()).save(any(Order.class));
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -548,5 +596,6 @@ public class OrderServiceRefactorTest {
         assertThrows(ResourceNotFoundException.class,
                 () -> orderService.updateOrderStatus(orderId, OrderStatus.CANCELLED, requester));
         verify(orderRepository, never()).save(any(Order.class));
+        verify(notificationService, never()).sendNotification(any(), anyString(), anyString(), anyString(), any());
     }
 }
