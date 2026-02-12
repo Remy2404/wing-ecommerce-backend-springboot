@@ -39,3 +39,5 @@ khqr_docs/
 # Environment specific properties
 src/main/resources/application-dev.properties
 
+# Local deprecated SQL cleanup placeholder (prod SQL init is disabled)
+src/main/resources/db/pre-schema-cleanup.sql
