@@ -219,11 +219,11 @@ public class EnhancedAuthService {
     @Transactional
     public void verifyEmail(String token) {
         User user = userRepository.findByEmailVerificationToken(token)
-                .orElseThrow(() -> new RuntimeException("Invalid verification token"));
+                .orElseThrow(() -> new BadRequestException("Invalid verification token"));
 
         // Check if token is expired (24 hours)
         if (user.getEmailVerificationSentAt().isBefore(Instant.now().minus(24, ChronoUnit.HOURS))) {
-            throw new RuntimeException("Verification token has expired");
+            throw new BadRequestException("Verification token has expired");
         }
 
         user.setEmailVerified(true);
@@ -237,10 +237,10 @@ public class EnhancedAuthService {
     @Transactional
     public AuthResponse verifyEmailAndLogin(String token) {
         User user = userRepository.findByEmailVerificationToken(token)
-                .orElseThrow(() -> new RuntimeException("Invalid verification token"));
+                .orElseThrow(() -> new BadRequestException("Invalid verification token"));
 
         if (user.getEmailVerificationSentAt().isBefore(Instant.now().minus(24, ChronoUnit.HOURS))) {
-            throw new RuntimeException("Verification token has expired");
+            throw new BadRequestException("Verification token has expired");
         }
 
         user.setEmailVerified(true);
@@ -255,10 +255,10 @@ public class EnhancedAuthService {
     @Transactional
     public void resendVerificationByToken(String token) {
         User user = userRepository.findByEmailVerificationToken(token)
-                .orElseThrow(() -> new RuntimeException("Invalid verification token"));
+                .orElseThrow(() -> new BadRequestException("Invalid verification token"));
 
         if (Boolean.TRUE.equals(user.getEmailVerified())) {
-            throw new RuntimeException("Email is already verified");
+            throw new BadRequestException("Email is already verified");
         }
 
         user.setEmailVerificationToken(UUID.randomUUID().toString());

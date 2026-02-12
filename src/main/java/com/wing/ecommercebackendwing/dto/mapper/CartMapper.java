@@ -4,6 +4,7 @@ import com.wing.ecommercebackendwing.dto.response.cart.CartItemResponse;
 import com.wing.ecommercebackendwing.dto.response.cart.CartResponse;
 import com.wing.ecommercebackendwing.model.entity.Cart;
 import com.wing.ecommercebackendwing.model.entity.CartItem;
+import com.wing.ecommercebackendwing.model.entity.ProductVariant;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -25,21 +26,37 @@ public class CartMapper {
                 .sum();
 
         return CartResponse.builder()
+                .id(cart.getId())
+                .userId(cart.getUser() != null ? cart.getUser().getId() : null)
                 .items(itemResponses)
-                .subtotal(subtotal)
                 .itemCount(itemCount)
+                .subtotal(subtotal)
+                .total(subtotal)
+                .createdAt(cart.getCreatedAt())
+                .updatedAt(cart.getUpdatedAt())
                 .build();
     }
 
     private static CartItemResponse toCartItemResponse(CartItem cartItem) {
         BigDecimal subtotal = cartItem.getPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity()));
+        ProductVariant variant = cartItem.getVariant();
+        Integer availableStock = variant != null
+                ? variant.getStock()
+                : cartItem.getProduct().getStockQuantity();
+
         return CartItemResponse.builder()
                 .id(cartItem.getId())
                 .productId(cartItem.getProduct().getId())
+                .merchantId(
+                        cartItem.getProduct().getMerchant() != null
+                                ? cartItem.getProduct().getMerchant().getId()
+                                : null
+                )
                 .productName(cartItem.getProduct().getName())
-                .variantId(cartItem.getVariant() != null ? cartItem.getVariant().getId() : null)
-                .variantName(cartItem.getVariant() != null ? cartItem.getVariant().getName() : null)
+                .variantId(variant != null ? variant.getId() : null)
+                .variantName(variant != null ? variant.getName() : null)
                 .quantity(cartItem.getQuantity())
+                .availableStock(availableStock)
                 .price(cartItem.getPrice())
                 .subtotal(subtotal)
                 .productSlug(cartItem.getProduct().getSlug())

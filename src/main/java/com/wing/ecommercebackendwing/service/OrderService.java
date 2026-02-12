@@ -119,6 +119,16 @@ public class OrderService {
 
         // Try to fetch cart (optional now if items are provided in request)
         Cart cart = cartRepository.findByUserId(userId).orElse(null);
+        List<CartItem> checkoutCartItems = Collections.emptyList();
+        if (cart != null && cart.getItems() != null && !cart.getItems().isEmpty()) {
+            checkoutCartItems = cart.getItems().stream()
+                    .filter(item -> request.getMerchantId() == null || (
+                            item.getProduct() != null
+                                    && item.getProduct().getMerchant() != null
+                                    && request.getMerchantId().equals(item.getProduct().getMerchant().getId())
+                    ))
+                    .toList();
+        }
 
         if (request.getItems() != null && !request.getItems().isEmpty()) {
             // Processing items from request (Buy Now flow)
@@ -175,9 +185,9 @@ public class OrderService {
                 orderItems.add(orderItem);
                 totalAmount = totalAmount.add(itemSubtotal);
             }
-        } else if (cart != null && !cart.getItems().isEmpty()) {
+        } else if (!checkoutCartItems.isEmpty()) {
             // Checkout from cart flow
-            for (com.wing.ecommercebackendwing.model.entity.CartItem cartItem : cart.getItems()) {
+            for (com.wing.ecommercebackendwing.model.entity.CartItem cartItem : checkoutCartItems) {
                 int quantity = cartItem.getQuantity() != null ? cartItem.getQuantity() : 0;
                 if (quantity <= 0) {
                     throw new BadRequestException("Cart contains an invalid quantity for product");
@@ -216,9 +226,7 @@ public class OrderService {
                 orderItem.setProductImage(product.getImages());
                 orderItem.setVariantName(variant != null ? variant.getName() : null);
                 orderItem.setQuantity(quantity);
-                BigDecimal unitPrice = cartItem.getPrice() != null
-                        ? cartItem.getPrice()
-                        : (variant != null ? variant.getPrice() : product.getPrice());
+                BigDecimal unitPrice = variant != null ? variant.getPrice() : product.getPrice();
                 orderItem.setUnitPrice(unitPrice);
 
                 BigDecimal itemSubtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
@@ -229,6 +237,8 @@ public class OrderService {
                 orderItems.add(orderItem);
                 totalAmount = totalAmount.add(itemSubtotal);
             }
+        } else if (request.getMerchantId() != null) {
+            throw new BadRequestException("No cart items found for the selected merchant");
         } else {
             throw new BadRequestException("No items provided and no cart found");
         }
@@ -322,7 +332,16 @@ public class OrderService {
         // Clear cart ONLY if we checked out FROM the cart
         if (request.getItems() == null || request.getItems().isEmpty()) {
             if (cart != null) {
-                cart.getItems().clear();
+                if (request.getMerchantId() != null) {
+                    UUID checkedOutMerchantId = request.getMerchantId();
+                    cart.getItems().removeIf(cartItem ->
+                            cartItem.getProduct() != null
+                                    && cartItem.getProduct().getMerchant() != null
+                                    && checkedOutMerchantId.equals(cartItem.getProduct().getMerchant().getId())
+                    );
+                } else {
+                    cart.getItems().clear();
+                }
                 cartRepository.save(cart);
             }
         }

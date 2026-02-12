@@ -11,10 +11,12 @@ import java.util.UUID;
 public class CartItemResponse {
     private UUID id;
     private UUID productId;
+    private UUID merchantId;
     private String productName;
     private UUID variantId;
     private String variantName;
     private Integer quantity;
+    private Integer availableStock;
     private BigDecimal price;
     private BigDecimal subtotal;
     private String productImage;

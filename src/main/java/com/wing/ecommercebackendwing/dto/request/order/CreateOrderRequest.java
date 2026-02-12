@@ -20,6 +20,9 @@ public class CreateOrderRequest {
     @Valid
     private List<OrderItemRequest> items;
 
+    @Schema(description = "Merchant ID to checkout from cart (optional)")
+    private UUID merchantId;
+
     @Schema(description = "Shipping address for delivery")
     @Valid
     private ShippingAddressRequest shippingAddress;
