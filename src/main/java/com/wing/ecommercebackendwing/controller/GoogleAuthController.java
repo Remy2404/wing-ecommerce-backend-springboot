@@ -36,7 +36,7 @@ public class GoogleAuthController {
     @Value("${jwt.refresh.cookie.max-age:604800}")
     private int refreshTokenMaxAge;
 
-    @Value("${jwt.refresh.cookie.secure:false}")
+    @Value("${jwt.refresh.cookie.secure:true}")
     private boolean cookieSecure;
 
     @Value("${jwt.refresh.cookie.http-only:true}")

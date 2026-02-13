@@ -43,7 +43,7 @@ public class AuthController {
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtProperties jwtProperties;
 
-    @Value("${cookie.secure:false}")
+    @Value("${cookie.secure:true}")
     private boolean cookieSecure;
  
     private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
@@ -53,7 +53,7 @@ public class AuthController {
         return ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, tokenValue)
                 .httpOnly(true)
                 .secure(cookieSecure)
-                .sameSite("Lax")
+                .sameSite("None")
                 .path(REFRESH_TOKEN_COOKIE_PATH)
                 .maxAge(maxAgeSeconds)
                 .build();
