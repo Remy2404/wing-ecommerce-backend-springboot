@@ -10,12 +10,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -41,6 +42,23 @@ public class GoogleAuthController {
 
     @Value("${jwt.refresh.cookie.http-only:true}")
     private boolean cookieHttpOnly;
+
+    private static final String REFRESH_TOKEN_COOKIE_PATH = "/api";
+
+    private String resolveSameSitePolicy() {
+        // SameSite=None must be paired with Secure. For local HTTP development, use Lax.
+        return cookieSecure ? "None" : "Lax";
+    }
+
+    private ResponseCookie createRefreshTokenCookie(String tokenValue) {
+        return ResponseCookie.from(refreshTokenCookieName, tokenValue)
+                .httpOnly(cookieHttpOnly)
+                .secure(cookieSecure)
+                .sameSite(resolveSameSitePolicy())
+                .path(REFRESH_TOKEN_COOKIE_PATH)
+                .maxAge(refreshTokenMaxAge)
+                .build();
+    }
 
     @Operation(
         summary = "Login with Google",
@@ -84,12 +102,10 @@ public class GoogleAuthController {
         AuthResponse response = googleAuthService.authenticateWithGoogle(request.getIdToken());
 
         // Set refresh token as HttpOnly cookie
-        Cookie refreshCookie = new Cookie(refreshTokenCookieName, response.getRefreshToken());
-        refreshCookie.setHttpOnly(cookieHttpOnly);
-        refreshCookie.setSecure(cookieSecure);
-        refreshCookie.setPath("/");
-        refreshCookie.setMaxAge(refreshTokenMaxAge);
-        httpResponse.addCookie(refreshCookie);
+        if (response.getRefreshToken() != null) {
+            ResponseCookie refreshCookie = createRefreshTokenCookie(response.getRefreshToken());
+            httpResponse.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+        }
 
         return ResponseEntity.ok(response);
     }

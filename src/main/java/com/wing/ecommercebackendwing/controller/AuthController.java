@@ -48,12 +48,18 @@ public class AuthController {
  
     private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
     private static final String REFRESH_TOKEN_COOKIE_PATH = "/api";
+    
+    private String resolveSameSitePolicy() {
+        // Modern browsers require Secure when SameSite=None.
+        // In local HTTP development (cookie.secure=false), use Lax so cookie updates are not dropped.
+        return cookieSecure ? "None" : "Lax";
+    }
 
     private ResponseCookie createRefreshTokenCookie(String tokenValue, long maxAgeSeconds) {
         return ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, tokenValue)
                 .httpOnly(true)
                 .secure(cookieSecure)
-                .sameSite("None")
+                .sameSite(resolveSameSitePolicy())
                 .path(REFRESH_TOKEN_COOKIE_PATH)
                 .maxAge(maxAgeSeconds)
                 .build();
