@@ -21,7 +21,8 @@ public class EmailService {
     @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
 
-    @Async
+    // Intentionally NOT @Async: registration depends on this succeeding synchronously
+    // so that EnhancedAuthService.register() can catch failures and roll back.
     public void sendVerificationEmail(String toEmail, String token) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();

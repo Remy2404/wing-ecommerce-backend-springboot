@@ -69,7 +69,7 @@ services:
       - key: SPRING_MAIL_HOST
         sync: false
       - key: SPRING_MAIL_PORT
-        value: 587
+        value: 465
       - key: KHQR_EXPIRATION_SECONDS
         value: 600
       - key: SPRING_MAIL_USERNAME
